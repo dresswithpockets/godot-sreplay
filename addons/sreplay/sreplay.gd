@@ -167,11 +167,6 @@ func play() -> void:
     _reset()
     _mode = Mode.REPLAYING
 
-
-# used to tag that an InputEvent was sent via replay payback. Necessary for filtering out 
-# non-playback InputEvents during playback.
-const _replay_event_meta_key: StringName = &"replay_input_event"
-
 enum _DeltaKey {
     Actions_JustPressed,
     Actions_JustReleased,
@@ -521,7 +516,6 @@ func _record_event(event: InputEvent) -> void:
         return
 
     event = event.duplicate(true)
-    event.set_meta(_replay_event_meta_key, true)
     
     if len(recording.idle_input_events) == 0:
         var input_event = TimedInputEvents.new(_idle_time, [event])
