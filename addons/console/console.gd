@@ -226,9 +226,6 @@ func _ready() -> void:
 
 
 func _input(event : InputEvent) -> void:
-    if SReplay.is_replay_event(event):
-        return
-
     if (event is InputEventKey):
         if (event.get_physical_keycode_with_modifiers() == KEY_QUOTELEFT): # ~ key.
             if (event.pressed):

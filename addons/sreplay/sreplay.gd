@@ -114,7 +114,6 @@ func play() -> void:
 # used to tag that an InputEvent was sent via replay payback. Necessary for filtering out 
 # non-playback InputEvents during playback.
 const _replay_event_meta_key: StringName = &"replay_input_event"
-const _replay_ignore_meta_key: StringName = &"replay_ignore_event"
 
 enum _DeltaKey {
     Actions_JustPressed,
@@ -460,10 +459,7 @@ func _reset() -> void:
     _physics_last_snapshot_time = 0
     _physics_delta = Delta.new()
 
-func _input(event: InputEvent) -> void:
-    if _mode != Mode.RECORDING:
-        return
-
+func _record_event(event: InputEvent) -> void:
     if !_is_compatible_input_event(event):
         return
 
@@ -481,6 +477,23 @@ func _input(event: InputEvent) -> void:
     else:
         var input_event = TimedInputEvents.new(_idle_time, [event])
         recording.idle_input_events.append(input_event)
+
+func _input(event: InputEvent) -> void:
+    if _mode == Mode.RECORDING:
+        _record_event(event)
+
+    # N.B. we pass the event along to _sreplay_input, but this ignores `set_process_input(false)`.
+    #      I could track every node in the tree that has `_sreplay_input` overriden, but this
+    #      but this is simpler, and in most cases where `_input` is overriden, input processing
+    #      is not disabled. I'll leave it up to the user of this utility to handle disabling
+    #      input on their nodes. e.g. just something like this:
+    #
+    #    func _sreplay_input(event: InputEvent) -> void:
+    #        if !is_processing_input():
+    #            return
+    #        ...
+    #
+    get_tree().get_root().propagate_call("_sreplay_input", [event])
 
 func _process(delta: float) -> void:
     if _mode == Mode.OFF:
@@ -521,7 +534,7 @@ func _process(delta: float) -> void:
             if _idle_time > next_timed_event.time or is_equal_approx(_idle_time, next_timed_event.time):
                 _idle_event_idx += 1
                 for event in next_timed_event.events:
-                    Input.parse_input_event(event)
+                    get_tree().get_root().propagate_call("_sreplay_input", [event])
 
 func _physics_process(delta: float) -> void:
     if _mode == Mode.OFF:
@@ -767,17 +780,6 @@ static func _record_action_property(
     
     _record_action_property_inner(value, input_state.actions, input_delta, delta_key, action, getter, setter)
     _record_action_property_inner(value_exact, input_state.actions_exact, input_delta, delta_key_exact, action, getter, setter)
-
-func ignore_event(event: InputEvent):
-    event.set_meta(_replay_ignore_meta_key, true)
-
-func is_replay_event(event: InputEvent) -> bool:
-    return event.has_meta(_replay_event_meta_key)
-
-## returns true if the event isn't sourced from the replay, or if its been tagged to be ignored via
-## [method ignore_event]
-func filtered_event(event: InputEvent) -> bool:
-    return _mode == Mode.REPLAYING and (!event.has_meta(_replay_event_meta_key) or event.has_meta(_replay_ignore_meta_key))
 
 func _get_capture_playback(key: StringName) -> Variant:
     var input_state := _idle_input

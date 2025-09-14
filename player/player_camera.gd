@@ -9,10 +9,7 @@ const replay_player_camera_position = &"player_camera_position"
 var yaw: Basis = Basis.IDENTITY
 var _pitch: Basis = Basis.IDENTITY
 
-func _input(event: InputEvent) -> void:
-    if SReplay.filtered_event(event):
-        return
-
+func _sreplay_input(event: InputEvent) -> void:
     if event is InputEventMouseMotion and SReplay.mouse_mode == Input.MOUSE_MODE_CAPTURED:
         move_camera(event.screen_relative)
 
