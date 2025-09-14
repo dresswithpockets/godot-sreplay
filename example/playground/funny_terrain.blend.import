@@ -4,12 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cx7n67q7njcp0"
-path="res://.godot/imported/funny_terrain.blend-7828e3cd8330bc1c4339d61cc773aab8.scn"
+path="res://.godot/imported/funny_terrain.blend-2ec86d20177a521e6c7a5586b60cb2d0.scn"
 
 [deps]
 
-source_file="res://playground/funny_terrain.blend"
-dest_files=["res://.godot/imported/funny_terrain.blend-7828e3cd8330bc1c4339d61cc773aab8.scn"]
+source_file="res://example/playground/funny_terrain.blend"
+dest_files=["res://.godot/imported/funny_terrain.blend-2ec86d20177a521e6c7a5586b60cb2d0.scn"]
 
 [params]
 

@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://dvxxltoq83k48"]
 
-[ext_resource type="Theme" uid="uid://dwhusrkn0a2cc" path="res://replay/recorder/overlay_theme.tres" id="1_cs5pi"]
-[ext_resource type="Script" uid="uid://djchdtjhvhn7m" path="res://replay/recorder/recorder.gd" id="2_86snt"]
+[ext_resource type="Theme" uid="uid://dwhusrkn0a2cc" path="res://example/replay/recorder/overlay_theme.tres" id="1_cs5pi"]
+[ext_resource type="Script" uid="uid://djchdtjhvhn7m" path="res://example/replay/recorder/recorder.gd" id="2_86snt"]
 
 [node name="Recorder" type="Control"]
 layout_mode = 3

@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://cvnok5ear38sk"]
 
-[ext_resource type="Script" uid="uid://dcnso7reikx53" path="res://ikcc_player/ikcc_player.gd" id="1_oul6g"]
-[ext_resource type="Script" uid="uid://dtpvuwsqdcxrl" path="res://ikcc_player/ikcc_player_camera_yaw.gd" id="2_rkbax"]
+[ext_resource type="Script" uid="uid://dcnso7reikx53" path="res://example/ikcc_player/ikcc_player.gd" id="1_oul6g"]
+[ext_resource type="Script" uid="uid://dtpvuwsqdcxrl" path="res://example/ikcc_player/ikcc_player_camera_yaw.gd" id="2_rkbax"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_oul6g"]
 margin = 0.005

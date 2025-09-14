@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://6178amv01n5s"
-path.s3tc="res://.godot/imported/purple_stairs.png-6d21cc93d68f8ff4e905440fb4e83667.s3tc.ctex"
+uid="uid://cmakn5jlblrk7"
+path.s3tc="res://.godot/imported/green_ground.png-a20d09bcb7c70de3d7b914d6ae5b0c83.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://playground/purple_stairs.png"
-dest_files=["res://.godot/imported/purple_stairs.png-6d21cc93d68f8ff4e905440fb4e83667.s3tc.ctex"]
+source_file="res://example/playground/green_ground.png"
+dest_files=["res://.godot/imported/green_ground.png-a20d09bcb7c70de3d7b914d6ae5b0c83.s3tc.ctex"]
 
 [params]
 

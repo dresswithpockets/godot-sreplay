@@ -1,12 +1,12 @@
-[gd_scene load_steps=10 format=3 uid="uid://c6aonp2o2u4eq"]
+[gd_scene load_steps=10 format=3 uid="uid://skcssxo0jnxi"]
 
-[ext_resource type="Texture2D" uid="uid://cmakn5jlblrk7" path="res://playground/green_ground.png" id="1_gwu22"]
-[ext_resource type="Texture2D" uid="uid://6178amv01n5s" path="res://playground/purple_stairs.png" id="2_l2c8s"]
-[ext_resource type="PackedScene" uid="uid://cx7n67q7njcp0" path="res://playground/funny_terrain.blend" id="4_c3jux"]
-[ext_resource type="PackedScene" uid="uid://c8lkg3egdihh2" path="res://player/player.tscn" id="4_l2c8s"]
+[ext_resource type="Texture2D" uid="uid://cmakn5jlblrk7" path="res://example/playground/green_ground.png" id="1_s2wyv"]
+[ext_resource type="Texture2D" uid="uid://6178amv01n5s" path="res://example/playground/purple_stairs.png" id="2_v0uex"]
+[ext_resource type="PackedScene" uid="uid://cvnok5ear38sk" path="res://example/ikcc_player/ikcc_player.tscn" id="3_dymfj"]
+[ext_resource type="PackedScene" uid="uid://cx7n67q7njcp0" path="res://example/playground/funny_terrain.blend" id="4_jr81i"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_duj6w"]
-albedo_texture = ExtResource("1_gwu22")
+albedo_texture = ExtResource("1_s2wyv")
 uv1_scale = Vector3(10, 10, 10)
 texture_filter = 4
 
@@ -22,10 +22,10 @@ background_mode = 2
 sky = SubResource("Sky_8vnjg")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gwu22"]
-albedo_texture = ExtResource("2_l2c8s")
+albedo_texture = ExtResource("2_v0uex")
 texture_filter = 4
 
-[node name="Playground" type="Node3D" groups=["sreplay_input"]]
+[node name="Playground" type="Node3D"]
 
 [node name="Ground" type="CSGBox3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
@@ -42,44 +42,42 @@ light_color = Color(1, 1, 0.815686, 1)
 light_energy = 0.75
 shadow_enabled = true
 
-[node name="SteepStairs" type="Node3D" parent="."]
-
-[node name="Step8" type="CSGBox3D" parent="SteepStairs"]
+[node name="Step8" type="CSGBox3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0.25, -5)
 use_collision = true
 collision_layer = 3
 size = Vector3(0.1, 0.5, 3)
 material = SubResource("StandardMaterial3D_gwu22")
 
-[node name="Step9" type="CSGBox3D" parent="SteepStairs"]
+[node name="Step9" type="CSGBox3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.1, 0.5, -5)
 use_collision = true
 collision_layer = 3
 size = Vector3(0.1, 1, 3)
 material = SubResource("StandardMaterial3D_gwu22")
 
-[node name="Step10" type="CSGBox3D" parent="SteepStairs"]
+[node name="Step10" type="CSGBox3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.2, 0.75, -5)
 use_collision = true
 collision_layer = 3
 size = Vector3(0.1, 1.5, 3)
 material = SubResource("StandardMaterial3D_gwu22")
 
-[node name="Step11" type="CSGBox3D" parent="SteepStairs"]
+[node name="Step11" type="CSGBox3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3, 1, -5)
 use_collision = true
 collision_layer = 3
 size = Vector3(0.1, 2, 3)
 material = SubResource("StandardMaterial3D_gwu22")
 
-[node name="Step12" type="CSGBox3D" parent="SteepStairs"]
+[node name="Step12" type="CSGBox3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.4, 1.25, -5)
 use_collision = true
 collision_layer = 3
 size = Vector3(0.1, 2.5, 3)
 material = SubResource("StandardMaterial3D_gwu22")
 
-[node name="Step13" type="CSGBox3D" parent="SteepStairs"]
+[node name="Step13" type="CSGBox3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.5, -5)
 use_collision = true
 collision_layer = 3
@@ -182,8 +180,17 @@ collision_layer = 3
 size = Vector3(3.9, 0.3, 3)
 material = SubResource("StandardMaterial3D_gwu22")
 
-[node name="funny_terrain" parent="." instance=ExtResource("4_c3jux")]
-transform = Transform3D(5, 0, 0, 0, 5, 0, 0, 0, 5, -5.03649, -0.177298, -12.9381)
+[node name="Player" parent="." instance=ExtResource("3_dymfj")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 2.5, 0, 0)
+axis_lock_angular_x = true
+axis_lock_angular_y = true
+floor_constant_speed = true
+floor_constant_speed = true
+wall_constant_speed = true
+moving_platform_layers = 2
+
+[node name="Node3D" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.45519e-11, 0.3, 1.45519e-11)
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
 anchors_preset = 15
@@ -196,6 +203,5 @@ grow_vertical = 2
 custom_minimum_size = Vector2(8, 8)
 layout_mode = 2
 
-[node name="Player" parent="." instance=ExtResource("4_l2c8s")]
-transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 2.17131, 2.38419e-07, -1.22164)
-step_horizontal_threshold = 2.0
+[node name="funny_terrain" parent="." instance=ExtResource("4_jr81i")]
+transform = Transform3D(5, 0, 0, 0, 5, 0, 0, 0, 5, -5.03649, -0.177298, -12.9381)

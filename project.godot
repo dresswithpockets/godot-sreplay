@@ -17,10 +17,10 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-Settings="*res://settings.gd"
+Settings="*res://example/settings.gd"
 Console="*res://addons/console/console.gd"
-MouseCapture="*res://player/mouse_capture.gd"
-Recorder="*res://replay/recorder/recorder.tscn"
+MouseCapture="*res://example/player/mouse_capture.gd"
+Recorder="*res://example/replay/recorder/recorder.tscn"
 SReplay="*res://addons/sreplay/sreplay.gd"
 
 [display]
