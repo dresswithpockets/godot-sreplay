@@ -1,6 +1,7 @@
 extends Control
 
 @onready var _recording_label: Label = $OverlayContainer/RecordingLabel
+@onready var _replaying_label: Label = $OverlayContainer/ReplayingLabel
 var _font_color: Color = Color.WHITE
 var _font_outline_color: Color = Color.BLACK
 var _time: float = 0
@@ -100,48 +101,19 @@ func _ready() -> void:
     Console.add_command("pause", _pause, [], 0, "Pause replay")
     Console.add_command("unpause", _unpause, [], 0, "Unpause replay")
 
-#func _input(event: InputEvent) -> void:
-    #if event is InputEventKey and event.is_pressed():
-#
-        #if event.keycode == KEY_P:
-            #await get_tree().physics_frame
-            #SReplay.record()
-            #return
-#
-        #if event.keycode == KEY_O:
-            #await get_tree().physics_frame
-            #SReplay.stop()
-            #return
-        #
-        #if event.keycode == KEY_I:
-            #assert(get_tree().reload_current_scene() == OK)
-            #await get_tree().physics_frame
-            #
-            #SReplay.play()
-            #
-            #await get_tree().physics_frame
-            #Engine.time_scale = 0.5
-#
-            #return
-
 func _process(delta: float) -> void:
-    if SReplay.mode == SReplay.Mode.RECORDING:
+    if SReplay.mode != SReplay.Mode.OFF:
         _time += delta
         _font_color.a = pingpong(_time, 1.0)
         _font_outline_color.a = pingpong(_time, 1.0)
     else:
         _font_color.a = 0
         _font_outline_color.a = 0
-
+    
+    _recording_label.visible = SReplay.mode == SReplay.Mode.RECORDING
+    _replaying_label.visible = SReplay.mode == SReplay.Mode.REPLAYING
+    
     _recording_label.add_theme_color_override("font_color", _font_color)
     _recording_label.add_theme_color_override("font_outline_color", _font_outline_color)
-
-#func _physics_process(delta: float) -> void:
-    #if SReplay.mode != SReplay.Mode.OFF:
-        #return
-#
-    #if Input.is_action_just_pressed("sreplay_record"):
-        #pass
-#
-    #if Input.is_action_just_pressed("sreplay_stop"):
-        #pass
+    _replaying_label.add_theme_color_override("font_color", _font_color)
+    _replaying_label.add_theme_color_override("font_outline_color", _font_outline_color)
