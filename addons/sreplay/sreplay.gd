@@ -1,7 +1,64 @@
+extends Node
 ## Record input and node states into a replay, for future playback.
 ##
 ## Wraps calls to [Input] to capture input and provide a drop-in replacement for replay playback.
-extends Node
+## When [method record] is called, SReplay will begin capturing input into a [member Recording],
+## which can be serialized, deserialized, and played back later. When playing back a
+## [member Recording] via [method play], SReplay will playback the recording's polled inputs
+## and [InputEvent]'s. Calls to poll functions like [method get_vector] will return the recorded
+## input state during playback, and will otherwise behave like normal calls to the [Input] API.
+## [InputEvent]'s will also be played back across all nodes that have the method 
+## [code]_sreplay_input(event: InputEvent)[/code].
+## [br][br][br]
+##
+## [b]Input Polling:[/b][br]
+## SReplay implements a similar API as [Input], except it only implements the
+## mouse-related and action APIs. For example, if you are currently calling [Input] for movement
+## like this:
+##
+## [codeblock language=gdscript]
+## func _physics_process(delta: float) -> void:
+##     var input_dir := Vector2.ZERO
+##     if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+##         input_dir = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+## [/codeblock]
+##
+## Then you can use SReplay as a drop-in replacement by changing some of the references to [Input]
+## with references to [SReplay]:
+##
+## [codeblock language=gdscript]
+## func _physics_process(delta: float) -> void:
+##     var input_dir := Vector2.ZERO
+##     if SReplay.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+##         input_dir = SReplay.get_vector("move_left", "move_right", "move_forward", "move_back")
+## [/codeblock]
+## [br]
+##
+## [b]Input Events:[/b][br]
+## Normally, if you want to capture [InputEvent] on your node, you have to 
+## override [method Node._input], like so:
+##
+## [codeblock language=gdscript]
+## func _input(event: InputEvent) -> void:
+##     if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+##         move_camera(event.screen_relative)
+## [/codeblock]
+##
+## However, in order to support playback of recorded [InputEvent]s, SReplay propogates a call
+## to [code]_sreplay_input[/code] across the entire node tree, so the correct usage in your nodes 
+## should change to this:
+##
+## [codeblock language=gdscript]
+## func _sreplay_input(event: InputEvent) -> void:
+##     if event is InputEventMouseMotion and SReplay.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+##         move_camera(event.screen_relative)
+## [/codeblock]
+##
+## [b]Important:[/b] [code]_sreplay_input[/code] does not respect 
+## [code]set_process_input(false)[/code]. If you want to disable input processing on the node, then
+## you should gate it manually in [code]_sreplay_input[/code] by e.g.
+## [code]if is_processing_input(): return[/code]
+##
 
 enum Mode {
     OFF, ## No replay is being recorded or played back
