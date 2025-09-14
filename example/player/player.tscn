@@ -9,6 +9,8 @@ margin = 0.001
 height = 1.75
 
 [node name="Player" type="CharacterBody3D"]
+collision_layer = 4
+collision_mask = 3
 wall_min_slide_angle = 0.0
 floor_constant_speed = true
 floor_block_on_wall = false
@@ -29,5 +31,16 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 
 [node name="CameraMount" type="Node3D" parent="CameraMountOffset"]
 script = ExtResource("2_rkbax")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ColorRect" type="ColorRect" parent="CenterContainer"]
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
 
 [connection signal="moved" from="." to="CameraMountOffset/CameraMount" method="_on_player_moved"]

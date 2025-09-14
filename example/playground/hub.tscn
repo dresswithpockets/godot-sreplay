@@ -1,0 +1,69 @@
+[gd_scene load_steps=10 format=3 uid="uid://crolohox4g54f"]
+
+[ext_resource type="Texture2D" uid="uid://cmakn5jlblrk7" path="res://example/playground/green_ground.png" id="1_wnap3"]
+[ext_resource type="PackedScene" uid="uid://c8lkg3egdihh2" path="res://example/player/player.tscn" id="2_6vef6"]
+[ext_resource type="PackedScene" uid="uid://bq2c61myyrmrg" path="res://example/playground/portal.tscn" id="3_gwxg0"]
+[ext_resource type="PackedScene" uid="uid://c6aonp2o2u4eq" path="res://example/playground/level1.tscn" id="4_gwxg0"]
+[ext_resource type="PackedScene" uid="uid://trya8s6qc0io" path="res://example/playground/level2.tscn" id="5_yok3b"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_duj6w"]
+albedo_texture = ExtResource("1_wnap3")
+uv1_scale = Vector3(10, 10, 10)
+texture_filter = 4
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_duj6w"]
+sky_energy_multiplier = 0.9
+ground_bottom_color = Color(0.105882, 0.854902, 0.47451, 1)
+
+[sub_resource type="Sky" id="Sky_8vnjg"]
+sky_material = SubResource("ProceduralSkyMaterial_duj6w")
+
+[sub_resource type="Environment" id="Environment_duj6w"]
+background_mode = 2
+sky = SubResource("Sky_8vnjg")
+
+[node name="Playground" type="Node3D" groups=["sreplay_input"]]
+
+[node name="Ground" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
+use_collision = true
+collision_mask = 4
+size = Vector3(100, 0.1, 100)
+material = SubResource("StandardMaterial3D_duj6w")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_duj6w")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 4, 3)
+light_color = Color(1, 1, 0.815686, 1)
+light_energy = 0.75
+shadow_enabled = true
+
+[node name="Player" parent="." instance=ExtResource("2_6vef6")]
+transform = Transform3D(1.31134e-07, 0, -1, 0, 1, 0, 1, 0, 1.31134e-07, -4, 0, -2.5)
+step_horizontal_threshold = 2.0
+
+[node name="Wall" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, 1.5, -2.5)
+use_collision = true
+collision_mask = 4
+size = Vector3(1.5, 3, 7)
+
+[node name="SubtractDoor" type="CSGBox3D" parent="Wall"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, -0.25, -1.5)
+operation = 2
+size = Vector3(1, 2.5, 2)
+
+[node name="SubtractDoor2" type="CSGBox3D" parent="Wall"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, -0.25, 1.5)
+operation = 2
+size = Vector3(1, 2.5, 2)
+
+[node name="Level1Portal" parent="." instance=ExtResource("3_gwxg0")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.299072, 1.25, -4)
+scene = ExtResource("4_gwxg0")
+
+[node name="Level2Portal" parent="." instance=ExtResource("3_gwxg0")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 1.25, -1)
+scene = ExtResource("5_yok3b")

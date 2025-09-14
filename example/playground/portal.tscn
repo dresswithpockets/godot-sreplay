@@ -1,0 +1,25 @@
+[gd_scene load_steps=4 format=3 uid="uid://bq2c61myyrmrg"]
+
+[ext_resource type="Material" uid="uid://daqgdu8gahir2" path="res://example/playground/funny_terrain_material.tres" id="1_lpbjl"]
+[ext_resource type="Script" uid="uid://dj3h0ck3fwckn" path="res://example/playground/portal.gd" id="2_peaj6"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6vef6"]
+size = Vector3(0.8, 2, 1.5)
+
+[node name="Portal" type="CSGBox3D"]
+material_override = ExtResource("1_lpbjl")
+operation = 2
+size = Vector3(0.4, 2.5, 2)
+script = ExtResource("2_peaj6")
+
+[node name="Label" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1, 1.5, 0)
+billboard = 2
+text = "Level 1"
+
+[node name="Area" type="Area3D" parent="."]
+collision_layer = 2
+collision_mask = 4
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area"]
+shape = SubResource("BoxShape3D_6vef6")

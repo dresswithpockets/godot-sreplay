@@ -1,0 +1,88 @@
+[gd_scene load_steps=10 format=3 uid="uid://trya8s6qc0io"]
+
+[ext_resource type="Texture2D" uid="uid://cmakn5jlblrk7" path="res://example/playground/green_ground.png" id="1_aglb0"]
+[ext_resource type="Texture2D" uid="uid://6178amv01n5s" path="res://example/playground/purple_stairs.png" id="2_ji57p"]
+[ext_resource type="PackedScene" uid="uid://cx7n67q7njcp0" path="res://example/playground/funny_terrain.blend" id="3_xhf7f"]
+[ext_resource type="PackedScene" uid="uid://c8lkg3egdihh2" path="res://example/player/player.tscn" id="4_xnvbb"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_duj6w"]
+albedo_texture = ExtResource("1_aglb0")
+uv1_scale = Vector3(10, 10, 10)
+texture_filter = 4
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_duj6w"]
+sky_energy_multiplier = 0.9
+ground_bottom_color = Color(0.105882, 0.854902, 0.47451, 1)
+
+[sub_resource type="Sky" id="Sky_8vnjg"]
+sky_material = SubResource("ProceduralSkyMaterial_duj6w")
+
+[sub_resource type="Environment" id="Environment_duj6w"]
+background_mode = 2
+sky = SubResource("Sky_8vnjg")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gwu22"]
+albedo_texture = ExtResource("2_ji57p")
+texture_filter = 4
+
+[node name="Playground" type="Node3D" groups=["sreplay_input"]]
+
+[node name="Ground" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
+use_collision = true
+size = Vector3(100, 0.1, 100)
+material = SubResource("StandardMaterial3D_duj6w")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_duj6w")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 4, 3)
+light_color = Color(1, 1, 0.815686, 1)
+light_energy = 0.75
+shadow_enabled = true
+
+[node name="StairsWithLowCeiling" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
+
+[node name="Step1" type="CSGBox3D" parent="StairsWithLowCeiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.15, 0)
+use_collision = true
+collision_layer = 3
+size = Vector3(0.9, 0.3, 3)
+material = SubResource("StandardMaterial3D_gwu22")
+
+[node name="Step2" type="CSGBox3D" parent="StairsWithLowCeiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.35, 0.3, 0)
+use_collision = true
+collision_layer = 3
+size = Vector3(0.9, 0.6, 3)
+material = SubResource("StandardMaterial3D_gwu22")
+
+[node name="Step3" type="CSGBox3D" parent="StairsWithLowCeiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.25, 0.45, 0)
+use_collision = true
+collision_layer = 3
+size = Vector3(0.9, 0.9, 3)
+material = SubResource("StandardMaterial3D_gwu22")
+
+[node name="Step4" type="CSGBox3D" parent="StairsWithLowCeiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.15, 0.6, 0)
+use_collision = true
+collision_layer = 3
+size = Vector3(0.9, 1.2, 3)
+material = SubResource("StandardMaterial3D_gwu22")
+
+[node name="Ceiling" type="CSGBox3D" parent="StairsWithLowCeiling"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.65, 2.85, 0)
+use_collision = true
+collision_layer = 3
+size = Vector3(3.9, 0.3, 3)
+material = SubResource("StandardMaterial3D_gwu22")
+
+[node name="funny_terrain" parent="." instance=ExtResource("3_xhf7f")]
+transform = Transform3D(5, 0, 0, 0, 5, 0, 0, 0, 5, -5.03649, -0.177298, -12.9381)
+
+[node name="Player" parent="." instance=ExtResource("4_xnvbb")]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 2.17131, 2.38419e-07, -1.22164)
+step_horizontal_threshold = 2.0
