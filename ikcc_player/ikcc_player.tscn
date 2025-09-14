@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3 uid="uid://cvnok5ear38sk"]
+
+[ext_resource type="Script" uid="uid://dcnso7reikx53" path="res://ikcc_player/ikcc_player.gd" id="1_oul6g"]
+[ext_resource type="Script" uid="uid://dtpvuwsqdcxrl" path="res://ikcc_player/ikcc_player_camera_yaw.gd" id="2_rkbax"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_oul6g"]
+margin = 0.005
+height = 1.75
+
+[node name="Player" type="CharacterBody3D" node_paths=PackedStringArray("collider")]
+script = ExtResource("1_oul6g")
+collider = NodePath("PlayerShape")
+max_snap_length = 0.1
+platform_leave_action = 2
+max_step_height = 0.6
+
+[node name="PlayerShape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
+shape = SubResource("CylinderShape3D_oul6g")
+
+[node name="CameraYaw" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+script = ExtResource("2_rkbax")
+
+[node name="Camera" type="Camera3D" parent="CameraYaw"]
+
+[connection signal="moved" from="." to="CameraYaw" method="_on_player_moved"]

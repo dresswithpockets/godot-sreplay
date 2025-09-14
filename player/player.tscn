@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3 uid="uid://c8lkg3egdihh2"]
+
+[ext_resource type="Script" uid="uid://def3s83gj2n48" path="res://player/player_camera.gd" id="1_g1dw6"]
+[ext_resource type="Script" uid="uid://b6ew3smgsvbbl" path="res://player/player.gd" id="1_rkbax"]
+[ext_resource type="Script" uid="uid://cyh5xtr14ys3n" path="res://player/camera_mount.gd" id="2_rkbax"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_yw30f"]
+margin = 0.001
+height = 1.75
+
+[node name="Player" type="CharacterBody3D"]
+wall_min_slide_angle = 0.0
+floor_constant_speed = true
+floor_block_on_wall = false
+script = ExtResource("1_rkbax")
+step_horizontal_threshold = 4.0
+
+[node name="PlayerShape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
+shape = SubResource("CylinderShape3D_yw30f")
+
+[node name="PlayerCamera" type="Camera3D" parent="." node_paths=PackedStringArray("mount")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+script = ExtResource("1_g1dw6")
+mount = NodePath("../CameraMountOffset/CameraMount")
+
+[node name="CameraMountOffset" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+
+[node name="CameraMount" type="Node3D" parent="CameraMountOffset"]
+script = ExtResource("2_rkbax")
+
+[connection signal="moved" from="." to="CameraMountOffset/CameraMount" method="_on_player_moved"]

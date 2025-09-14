@@ -1,0 +1,18 @@
+recording modes:
+- shadowplay-like replay buffer mode
+- start/stop recording mode
+
+recording features:
+- Input recording
+- _input recording
+- custom value recording
+
+playback:
+- respect Engine.time_scale in playback
+- deterministic physics-tick Input playback
+- non-deterministic idle-time Input playback
+- filtering _input events (e.g. `if Replay.filtered_event(event): return` to skip input events that arent in the playback)
+- pausing
+- arbitrary timeline scrubbing
+- playback speed control
+- step-back and step-forward
