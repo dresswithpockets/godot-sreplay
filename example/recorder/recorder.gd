@@ -159,7 +159,7 @@ func _speed_button_pressed(speed: float) -> void:
     if Engine.time_scale != 0:
         Engine.time_scale = _speed_control
 
-func _sreplay_mode_changed(old: SReplay.Mode, new: SReplay.Mode) -> void:
+func _sreplay_mode_changed(_old: SReplay.Mode, new: SReplay.Mode) -> void:
     if new != SReplay.Mode.REPLAYING:
         _playback_control.visible = false
         _scrubber.max_value = SReplay.recording.max_tick
