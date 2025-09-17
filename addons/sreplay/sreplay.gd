@@ -827,7 +827,10 @@ func _process(delta: float) -> void:
                 _idle_event_idx = idx
                 _apply_events(next.events, root)
 
-        _idle_time += delta
+        # we still want to scale time based on the playback rate. Rate constants are a all relative
+        # to the fullspeed constant Rate.FULL. So Rate.HALF = 4 would result in 50% speed, or a 0.5
+        # multiplayer
+        _idle_time += delta * (playback_rate / Rate.FULL)
 
 func _physics_process(delta: float) -> void:
     if _mode == Mode.OFF:
