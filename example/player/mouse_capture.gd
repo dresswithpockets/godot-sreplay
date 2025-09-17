@@ -3,7 +3,7 @@ extends Node
 var _last_mouse_mode: Input.MouseMode
 var _console_open: bool = false
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
     if _console_open:
         return
 

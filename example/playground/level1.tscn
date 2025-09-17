@@ -4,11 +4,6 @@
 [ext_resource type="Texture2D" uid="uid://6178amv01n5s" path="res://example/playground/purple_stairs.png" id="2_yb4w5"]
 [ext_resource type="PackedScene" uid="uid://c8lkg3egdihh2" path="res://example/player/player.tscn" id="4_c58qk"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_duj6w"]
-albedo_texture = ExtResource("1_ryg5f")
-uv1_scale = Vector3(10, 10, 10)
-texture_filter = 4
-
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_duj6w"]
 sky_energy_multiplier = 0.9
 ground_bottom_color = Color(0.105882, 0.854902, 0.47451, 1)
@@ -20,17 +15,16 @@ sky_material = SubResource("ProceduralSkyMaterial_duj6w")
 background_mode = 2
 sky = SubResource("Sky_8vnjg")
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_duj6w"]
+albedo_texture = ExtResource("1_ryg5f")
+uv1_scale = Vector3(10, 10, 10)
+texture_filter = 4
+
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gwu22"]
 albedo_texture = ExtResource("2_yb4w5")
 texture_filter = 4
 
-[node name="Playground" type="Node3D" groups=["sreplay_input"]]
-
-[node name="Ground" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
-use_collision = true
-size = Vector3(100, 0.1, 100)
-material = SubResource("StandardMaterial3D_duj6w")
+[node name="Level1" type="Node3D" groups=["sreplay_input"]]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_duj6w")
@@ -40,6 +34,12 @@ transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.43
 light_color = Color(1, 1, 0.815686, 1)
 light_energy = 0.75
 shadow_enabled = true
+
+[node name="Ground" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
+use_collision = true
+size = Vector3(100, 0.1, 100)
+material = SubResource("StandardMaterial3D_duj6w")
 
 [node name="SteepStairs" type="Node3D" parent="."]
 
@@ -145,4 +145,3 @@ material = SubResource("StandardMaterial3D_gwu22")
 
 [node name="Player" parent="." instance=ExtResource("4_c58qk")]
 transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 2.17131, 2.38419e-07, -1.22164)
-step_horizontal_threshold = 2.0

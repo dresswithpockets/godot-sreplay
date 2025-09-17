@@ -60,6 +60,10 @@ extends Node
 ## [code]if is_processing_input(): return[/code]
 ##
 
+signal mode_changed(old: Mode, new: Mode)
+signal shift_started(user_data: Variant)
+signal shift_finished
+
 enum Mode {
     OFF, ## No replay is being recorded or played back
     RECORDING, ## SReplay is recording a replay
@@ -72,7 +76,11 @@ var mode: Mode:
     get:
         return _mode
 
-static func _is_compatible_input_event(event: InputEvent) -> bool:
+var current_tick: int:
+    get:
+        return _physics_tick
+
+static func is_compatible_input_event(event: InputEvent) -> bool:
     # for security reasons, SReplay enforces that the InputEvent is one of a specified number of
     # types. Custom InputEvents would need to be added to this list and the list below
     return event is InputEventMouseButton or \
@@ -88,7 +96,7 @@ static func _is_compatible_input_event(event: InputEvent) -> bool:
        event is InputEventJoypadButton or \
        event is InputEventAction
 
-const _compatible_input_event_class_names: Array[String] = [
+const compatible_input_event_class_names: Array[String] = [
     "InputEventMouseButton",
     "InputEventMouseMotion",
     "InputEventShortcut",
@@ -103,19 +111,16 @@ const _compatible_input_event_class_names: Array[String] = [
     "InputEventAction",
 ]
 
-static func _is_compatible_input_event_class_name(event_class_name: String) -> bool:
-    return event_class_name in _compatible_input_event_class_names
-
-static func _instantiate_compatible_input_event(event_class_name: String) -> InputEvent:
-    if !_is_compatible_input_event_class_name(event_class_name):
-        push_error("input event class '%s' is not compatible with SReplay" % event_class_name)
-        return null
-    
-    return ClassDB.instantiate(event_class_name)
-
-## Begin recording a new replay. [br][br]
+## Begin recording a new replay on the next physics tick. [br][br]
 ##
-## SReplay will assign a new [member Recording] to [member recording], which will contain the replay.
+## [b]IMPORTANT:[/b] Do not call this function on the idle frame! Consider it undefined behaviour.
+## [br][br]
+##
+## SReplay will assign a new [SReplay.Recording] to [member recording], which will contain the 
+## replay.[br][br]
+##
+## [param user_data] must not be an object, signal, or callable. If provided, [param user_data] will
+## be stored in the new [SReplay.Recording]. See [SReplay.Recording] for more information. [br][br]
 ##
 ## By default, this will record an arbitrarily-long replay until stop is called. However, if 
 ## [param length] is greater than 0, then the recording will be created in buffered mode. After 
@@ -125,33 +130,68 @@ static func _instantiate_compatible_input_event(event_class_name: String) -> Inp
 ## Calls to [Input] differ in behaviour between physics and idle ticks. Replays occasionally take 
 ## full snapshots of the entire input state on idle ticks and on physics ticks, in order to enable 
 ## bidirectional navigation of the replay during playback. You can control how frequently snapshots
-## are captured by varying [param idle_snapshot_period] and [param physics_snapshot_period],
-## which specify the amount of time between each snapshot.
+## are captured by varying [param physics_snapshot_period], which specify the amount of time between
+## each snapshot.
 func record(
+    func_user_data: Variant = null,
     length: int = 0,
-    idle_snapshot_period: float = 1.0,
     physics_snapshot_period: float = 1.0,
 ) -> void:
+    if func_user_data:
+        if typeof(func_user_data) != TYPE_CALLABLE:
+            push_error("get_user_data must be a Callable that returns a valid user_data object")
+            return
+
     # TODO: record during playback to "edit" the recording?
     if _mode != Mode.OFF:
         push_error("attempted to record while recording or replaying a replay")
         return
     
+    # in order to ensure the start of our recording is deterministic, mode changes must always occur
+    # on the physics tick
+    if !Engine.is_in_physics_frame():
+        await get_tree().physics_frame
+        record(func_user_data, length, physics_snapshot_period)
+        return
+
+    var user_data: Variant = null
+    if func_user_data:
+        user_data = (func_user_data as Callable).call()
+        if typeof(user_data) in [TYPE_OBJECT, TYPE_SIGNAL, TYPE_CALLABLE]:
+            push_error("func_user_data.call() returned an Object, Signal, or Callable, which are not supported")
+            return
+
     _mode = Mode.RECORDING
     _reset()
     # TODO: support specifying length in Recording to trim the head of the recording as time exceeds the length
-    recording = Recording.new(idle_snapshot_period, physics_snapshot_period)
+    _func_user_data = func_user_data
+    recording = Recording.new(physics_snapshot_period, user_data)
+    mode_changed.emit(Mode.OFF, _mode)
 
-## Stops recording a replay. [br][br]
+## Stops recording a replay on the next physics tick. [br][br]
 ##
 ## Access the replay from [member recording].
 func stop() -> void:
-    _reset()
-    _mode = Mode.OFF
+    if _mode == Mode.OFF:
+        return
+    
+    # in order to ensure the start of our recording is deterministic, mode changes must always occur
+    # on the physics tick
+    if !Engine.is_in_physics_frame():
+        await get_tree().physics_frame
+        stop()
+        return
 
-## begins replaying the replay from the replay property. Errors if [member mode] is not 
-## [constant Mode.OFF]; that is, if a replay is being recorded or played back.
-func play() -> void:
+    recording.max_tick = _physics_tick
+    _reset()
+
+    var old_mode := _mode
+    _mode = Mode.OFF
+    mode_changed.emit(old_mode, _mode)
+
+## Begin replaying the [member recording] property on the next physics tick. Errors if a replay is 
+## being recorded or played back.
+func play(func_apply_user_data: Variant = null) -> void:
     if _mode != Mode.OFF:
         push_error("attempted to play while already recording or replaying a replay")
         return
@@ -164,8 +204,86 @@ func play() -> void:
         push_error("attempting to play empty recording")
         return
     
+    # in order to ensure the start of our recording is deterministic, mode changes must always occur
+    # on the physics tick
+    if !Engine.is_in_physics_frame():
+        await get_tree().physics_frame
+        play()
+        return
+    
     _reset()
+
+    _func_apply_user_data = func_apply_user_data
     _mode = Mode.REPLAYING
+    mode_changed.emit(Mode.OFF, _mode)
+
+func restart() -> void:
+    if _mode != Mode.REPLAYING:
+        push_error("attempted to restart playback, but SReplay isn't playing back a replay")
+        return
+
+    if recording == null:
+        push_error("attempting to restart a null recording")
+        return
+    
+    if recording.is_empty():
+        push_error("attempting to restart an empty recording")
+        return
+    
+    # in order to ensure the start of our recording is deterministic, playback must always begin on
+    # the physics tick
+    if !Engine.is_in_physics_frame():
+        await get_tree().physics_frame
+        restart()
+        return
+    
+    _reset()
+
+func shift(tick: int, play_until: bool = false) -> void:
+    if _mode != Mode.REPLAYING:
+        push_error("attempted to shift playback, but SReplay isn't playing back a replay")
+        return
+    
+    if tick == 0:
+        restart()
+        return
+    
+    if _physics_tick == tick:
+        return
+    
+    # shifting requires replacing our current state with a snapshot, followed by playback
+    # until we get to the correct tick. So, first we need to find the state that correlates to our
+    # tick
+    var snapshot: Snapshot = recording.snapshots[0]
+    for next in recording.snapshots:
+        if tick < next.physics_tick:
+            break
+
+        snapshot = next
+    
+    _physics_tick = snapshot.physics_tick
+    _physics_time = snapshot.physics_time
+    _physics_delta_idx = snapshot.physics_delta_idx
+    _physics_input = snapshot.physics_input_state.duplicate()
+    _apply_current_delta(recording.physics_deltas[_physics_delta_idx], _physics_input)
+    
+    _idle_time = snapshot.idle_time
+    _idle_delta_idx = snapshot.idle_delta_idx
+    _idle_event_idx = snapshot.idle_event_idx
+    _idle_input = snapshot.idle_input_state.duplicate()
+    _apply_current_delta(recording.idle_deltas[_idle_delta_idx], _idle_input)
+    
+    _func_apply_user_data.call(snapshot.user_data)
+
+    var root: Node = get_tree().get_root()
+    for event in recording.idle_input_events[_idle_event_idx].events:
+        root.propagate_call("_sreplay_input", [event])
+    
+    if play_until and tick != _physics_tick:
+        while _physics_tick != tick:
+            await get_tree().physics_frame
+    
+    shift_finished.emit()
 
 enum _DeltaKey {
     Actions_JustPressed,
@@ -188,7 +306,7 @@ enum _DeltaKey {
 static func _map_dict_values(from: Dictionary, callable: Callable) -> Dictionary:
     var result = {}
     for key in from:
-        result[key] = callable.call(from)
+        result[key] = callable.call(from[key])
     return result
 
 static func _serialize_capture(from: Variant) -> Variant:
@@ -282,7 +400,7 @@ class TimedInputEvents extends RefCounted:
     
     static func _event_from_dict(from: Dictionary) -> InputEvent:
         var event_class: String = from["class"]
-        if event_class not in _compatible_input_event_class_names:
+        if event_class not in compatible_input_event_class_names:
             push_error("Cannot instantiate InputEvent from class '%s' because it is not compatible with SReplay" % event_class)
             return null
         
@@ -310,7 +428,7 @@ class ActionState extends RefCounted:
     
     func duplicate() -> ActionState:
         var new := ActionState.new()
-        new.raw_string = raw_strength
+        new.raw_strength = raw_strength
         new.strength = strength
         new.just_pressed = just_pressed
         new.just_released = just_released
@@ -328,7 +446,7 @@ class ActionState extends RefCounted:
     
     static func from_dict(from: Dictionary) -> ActionState:
         var new := ActionState.new()
-        new.raw_string = from["raw_strength"]
+        new.raw_strength = from["raw_strength"]
         new.strength = from["strength"]
         new.just_pressed = from["just_pressed"]
         new.just_released = from["just_released"]
@@ -370,28 +488,35 @@ class InputState extends RefCounted:
             "actions": SReplay._map_dict_values(from.actions, ActionState.to_dict),
             "actions_exact": SReplay._map_dict_values(from.actions_exact, ActionState.to_dict),
             "mouse_mode": from.mouse_mode,
-            "last_mouse_screen_velocity": from.last_mouse_screen_velocity,
-            "last_mouse_velocity": from.last_mouse_velocity,
+            "last_mouse_screen_velocity": var_to_str(from.last_mouse_screen_velocity),
+            "last_mouse_velocity": var_to_str(from.last_mouse_velocity),
             "mouse_button_mask": from.mouse_button_mask,
-            "captures": from.captures,
+            "captures": var_to_str(from.captures),
         }
     
     static func from_dict(from: Dictionary) -> InputState:
-        var actions: Dictionary[StringName, Dictionary] = from["actions"]
-        var actions_exact: Dictionary[StringName, Dictionary] = from["actions_exact"]
+        var actions: Dictionary = from["actions"]
+        var actions_exact: Dictionary = from["actions_exact"]
         var mouse_mode: Input.MouseMode = from["mouse_mode"]
-        var last_mouse_screen_velocity: Vector2 = from["last_mouse_screen_velocity"]
-        var last_mouse_velocity: Vector2 = from["last_mouse_velocity"]
+        var last_mouse_screen_velocity: Vector2 = str_to_var(from["last_mouse_screen_velocity"])
+        var last_mouse_velocity: Vector2 = str_to_var(from["last_mouse_velocity"])
         var mouse_button_mask: int = from["mouse_button_mask"]
-        var captures: Dictionary[StringName, Variant] = from["captures"]
+        var captures: Dictionary = str_to_var(from["captures"])
+        
+        var mapped_actions: Dictionary[StringName, ActionState] = {}
+        mapped_actions.assign(SReplay._map_dict_values(actions, ActionState.from_dict))
+        var mapped_actions_exact: Dictionary[StringName, ActionState] = {}
+        mapped_actions_exact.assign(SReplay._map_dict_values(actions_exact, ActionState.from_dict))
+        var mapped_captures: Dictionary[StringName, Variant] = {}
+        mapped_captures.assign(captures)
         return InputState.new(
-            SReplay._map_dict_values(actions, ActionState.from_dict),
-            SReplay._map_dict_values(actions_exact, ActionState.from_dict),
+            mapped_actions,
+            mapped_actions_exact,
             mouse_mode,
             last_mouse_screen_velocity,
             last_mouse_velocity,
             mouse_button_mask,
-            captures,
+            mapped_captures,
         )
     
     func duplicate() -> InputState:
@@ -413,106 +538,219 @@ class InputState extends RefCounted:
             captures.duplicate(true)
         )
 
+class TickTime extends RefCounted:
+    ## should always be the physics tick
+    var tick: int
+    var time: float
+    var delta_idx: int
+    var event_idx: int
+    var snapshot_idx: int
+    
+    func _init(
+        p_tick: int,
+        p_time: float,
+        p_delta_idx: int,
+        p_event_idx: int,
+        p_snapshot_idx: int,
+    ) -> void:
+        tick = p_tick
+        time = p_time
+        delta_idx = p_delta_idx
+        event_idx = p_event_idx
+        snapshot_idx = p_snapshot_idx
+    
+    static func to_dict(from: TickTime) -> Dictionary:
+        return {
+            "tick": from.tick,
+            "time": from.time,
+            "delta_idx": from.delta_idx,
+            "event_idx": from.event_idx,
+            "snapshot_idx": from.snapshot_idx,
+        }
+    
+    static func from_dict(from: Dictionary) -> TickTime:
+        var tick: int = from["tick"]
+        var time: float = from["time"]
+        var delta_idx: float = from["delta_idx"]
+        var event_idx: float = from["event_idx"]
+        var snapshot_idx: float = from["snapshot_idx"]
+        
+        return TickTime.new(tick, time, delta_idx, event_idx, snapshot_idx)
+
+class Snapshot extends RefCounted:
+    ## should always be the physics tick
+    var physics_tick: int
+    var physics_time: float
+    var physics_delta_idx: int
+    var idle_time: float
+    var idle_delta_idx: int
+    var idle_event_idx: int
+
+    var idle_input_state: InputState
+    var physics_input_state: InputState
+    var user_data: Variant
+    
+    func _init(
+        p_physics_tick: int,
+        p_physics_time: float,
+        p_physics_delta_idx: int,
+        p_idle_time: float,
+        p_idle_delta_idx: int,
+        p_idle_event_idx: int,
+        p_idle_input_state: InputState,
+        p_physics_input_state: InputState,
+        p_user_data: Variant = null
+    ) -> void:
+        physics_tick = p_physics_tick
+        physics_time = p_physics_time
+        physics_delta_idx = p_physics_delta_idx
+        idle_time = p_idle_time
+        idle_delta_idx = p_idle_delta_idx
+        idle_event_idx = p_idle_event_idx
+        
+        idle_input_state = p_idle_input_state
+        physics_input_state = p_physics_input_state
+        user_data = p_user_data
+    
+    static func to_dict(from: Snapshot) -> Dictionary:
+        return {
+            "physics_tick": from.physics_tick,
+            "physics_time": from.physics_time,
+            "physics_delta_idx": from.physics_delta_idx,
+            "idle_time": from.idle_time,
+            "idle_delta_idx": from.idle_delta_idx,
+            "idle_event_idx": from.idle_event_idx,
+            
+            "idle_input_state": InputState.to_dict(from.idle_input_state),
+            "physics_input_state": InputState.to_dict(from.physics_input_state),
+            "user_data": from.user_data,
+        }
+    
+    static func from_dict(from: Dictionary) -> Snapshot:
+        var physics_tick: int = from["physics_tick"]
+        var physics_time: float = from["physics_time"]
+        var physics_delta_idx: int = from["physics_delta_idx"]
+        var idle_time: float = from["idle_time"]
+        var idle_delta_idx: int = from["idle_delta_idx"]
+        var idle_event_idx: int = from["idle_event_idx"]
+        
+        var idle_input_state := InputState.from_dict(from["idle_input_state"])
+        var physics_input_state := InputState.from_dict(from["physics_input_state"])
+        var user_data: Variant = from.get("user_data")
+        
+        return Snapshot.new(
+            physics_tick,
+            physics_time,
+            physics_delta_idx,
+            idle_time,
+            idle_delta_idx,
+            idle_event_idx,
+            idle_input_state,
+            physics_input_state,
+            user_data,
+        )
+
+## A recording of all polled inputs, input events, and snapshots.
 class Recording extends RefCounted:
-    var idle_snapshot_delay := 1.0
     var physics_snapshot_delay := 1.0
+    var user_data: Variant
+    var max_tick: int
 
     var idle_deltas: Array[Delta] = []
-    var idle_input_snapshots: Array[InputState] = []
     var idle_input_events: Array[TimedInputEvents] = []
     var physics_deltas: Array[Delta] = []
-    var physics_input_snapshots: Array[InputState] = []
+    var snapshots: Array[Snapshot] = []
     # TODO: Node state snapshotting
 
-    func _init(p_idle_snapshot_delay: float, p_physics_snapshot_delay: float) -> void:
-        idle_snapshot_delay = p_idle_snapshot_delay
+    func _init(
+        p_physics_snapshot_delay: float,
+        p_user_data: Variant
+    ) -> void:
         physics_snapshot_delay = p_physics_snapshot_delay
+        user_data = p_user_data
     
     func is_empty() -> bool:
-        return idle_deltas.is_empty() and idle_input_snapshots.is_empty() and idle_input_events.is_empty() and physics_deltas.is_empty() and physics_input_snapshots.is_empty()
+        return idle_deltas.is_empty() and idle_input_events.is_empty() and physics_deltas.is_empty() and snapshots.is_empty()
     
     func to_dict() -> Dictionary:
         return {
-            "idle_snapshot_delay": idle_snapshot_delay,
             "physics_snapshot_delay": physics_snapshot_delay,
+            "user_data": user_data,
+            "max_tick": max_tick,
 
             "idle_deltas": idle_deltas.map(Delta.to_dict),
-            "idle_input_snapshots": idle_input_snapshots.map(InputState.to_dict),
             "idle_input_events": idle_input_events.map(TimedInputEvents.to_dict),
-            
             "physics_deltas": physics_deltas.map(Delta.to_dict),
-            "physics_input_snapshots": physics_input_snapshots.map(InputState.to_dict)
+            "snapshots": snapshots.map(Snapshot.to_dict)
         }
     
     static func from_dict(from: Dictionary) -> Recording:
-        var idle_snapshot_delay: float = from["idle_snapshot_delay"]
         var physics_snapshot_delay: float = from["physics_snapshot_delay"]
+        var user_data: Variant = from.get("user_data")
+        var max_tick: int = from["max_tick"]
         
         var idle_deltas: Array = from["idle_deltas"]
-        var idle_input_snapshots: Array = from["idle_input_snapshots"]
         var idle_input_events: Array = from["idle_input_events"]
-        
         var physics_deltas: Array = from["physics_deltas"]
-        var physics_input_snapshots: Array = from["physics_input_snapshots"]
+        var snapshots: Array = from["snapshots"]
         
-        var recording := Recording.new(idle_snapshot_delay, physics_snapshot_delay)
+        var recording := Recording.new(physics_snapshot_delay, user_data)
+        recording.max_tick = max_tick
         recording.idle_deltas.assign(idle_deltas.map(Delta.from_dict))
-        recording.idle_input_snapshots.assign(idle_input_snapshots.map(InputState.from_dict))
         recording.idle_input_events.assign(idle_input_events.map(TimedInputEvents.from_dict))
-        
         recording.physics_deltas.assign(physics_deltas.map(Delta.from_dict))
-        recording.physics_input_snapshots.assign(physics_input_snapshots.map(InputState.from_dict))
-        return recording
-    
-    static func from_json(json: String) -> Recording:
-        var dict: Dictionary = JSON.parse_string(json)
-        var idle_snapshot_delay: float = dict["idle_snapshot_delay"]
-        var physics_snapshot_delay: float = dict["physics_snapshot_delay"]
-        var idle_deltas: Array[Dictionary] = dict["idle_deltas"]
-        var idle_input_snapshots: Array[Dictionary] = dict["idle_input_snapshots"]
-        var idle_input_events: Array[Dictionary] = dict["idle_input_events"]
-        var physics_deltas: Array[Dictionary] = dict["physics_deltas"]
-        var physics_input_snapshots: Array[Dictionary] = dict["physics_input_snapshots"]
-
-        var recording := Recording.new(1.0, 1.0)
-        for delta_dict in idle_deltas:
-            var delta := Delta.new()
-            delta.time = delta_dict["time"]
+        recording.snapshots.assign(snapshots.map(Snapshot.from_dict))
         return recording
 
 var recording: Recording
 
+func _null_user_data() -> Variant:
+    return null
+
+func _apply_empty_user_data(_from: Dictionary) -> void:
+    pass
+
 # used in both recording and replaying mode
+var _func_user_data: Callable = _null_user_data
+var _func_apply_user_data: Callable = _apply_empty_user_data
 var _idle_time: float
 var _idle_input: InputState = InputState.new()
 var _idle_delta_idx: int = -1
 var _idle_event_idx: int = -1
+var _physics_tick: int = 0
 var _physics_time: float
 var _physics_input: InputState = InputState.new()
 var _physics_delta_idx: int = -1
 
 # only used in recording mode
+var _idle_time_previous: float
 var _idle_last_snapshot_time: float
 var _idle_delta: Delta = Delta.new()
+var _physics_time_previous: float
 var _physics_last_snapshot_time: float
 var _physics_delta: Delta = Delta.new()
 
 func _reset() -> void:
+    _func_user_data = _null_user_data
+    _func_apply_user_data = _apply_empty_user_data
     _idle_time = 0
     _idle_input = InputState.new()
     _idle_delta_idx = -1
     _idle_event_idx = -1
+    _physics_tick = 0
     _physics_time = 0
     _physics_input = InputState.new()
     _physics_delta_idx = -1
     
+    _idle_time_previous = 0
     _idle_last_snapshot_time = 0
     _idle_delta = Delta.new()
+    _physics_time_previous = 0
     _physics_last_snapshot_time = 0
     _physics_delta = Delta.new()
 
 func _record_event(event: InputEvent) -> void:
-    if !_is_compatible_input_event(event):
+    if !is_compatible_input_event(event):
         return
 
     event = event.duplicate(true)
@@ -529,7 +767,7 @@ func _record_event(event: InputEvent) -> void:
         var input_event = TimedInputEvents.new(_idle_time, [event])
         recording.idle_input_events.append(input_event)
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
     if _mode == Mode.RECORDING:
         _record_event(event)
 
@@ -544,7 +782,9 @@ func _input(event: InputEvent) -> void:
     #            return
     #        ...
     #
-    get_tree().get_root().propagate_call("_sreplay_input", [event])
+    
+    if _mode != Mode.REPLAYING:
+        get_tree().get_root().propagate_call("_sreplay_input", [event])
 
 func _process(delta: float) -> void:
     if _mode == Mode.OFF:
@@ -554,71 +794,104 @@ func _process(delta: float) -> void:
         # we do this on the beginning of this frame so we can accumulate calls to capture from the
         # last frame
         if !_idle_delta.changes.is_empty():
-            _idle_delta.time = _idle_time
+            _idle_delta.time = _idle_time_previous
             recording.idle_deltas.append(_idle_delta)
 
             _idle_delta = Delta.new()
 
+        _idle_time_previous = _idle_time
         _idle_time += delta
         _update_tick_input(_idle_delta, _idle_input)
 
-        if (_idle_last_snapshot_time - _idle_time) >= recording.idle_snapshot_delay:
-            recording.idle_input_snapshots.append(_idle_input.duplicate())
-            _idle_last_snapshot_time = _idle_time
-
-        return
-
     if _mode == Mode.REPLAYING:
         _idle_time += delta
-        if len(recording.idle_deltas) == 0:
-            # TODO: this shouldnt ever be true right?
-            return
+        assert(len(recording.idle_deltas) > 0)
         
         if _idle_delta_idx < len(recording.idle_deltas) - 1:
             var next_delta := recording.idle_deltas[_idle_delta_idx + 1]
-            if _idle_time > next_delta.time or is_equal_approx(_idle_time, next_delta.time):
+            while _idle_time > next_delta.time or is_equal_approx(_idle_time, next_delta.time):
                 _idle_delta_idx += 1
                 _apply_current_delta(next_delta, _idle_input)
 
+                if _idle_delta_idx >= len(recording.idle_deltas) - 1:
+                    break
+
+                next_delta = recording.idle_deltas[_idle_delta_idx + 1]
+
         if _idle_event_idx < len(recording.idle_input_events) - 1:
             var next_timed_event := recording.idle_input_events[_idle_event_idx + 1]
-            if _idle_time > next_timed_event.time or is_equal_approx(_idle_time, next_timed_event.time):
+            while _idle_time > next_timed_event.time or is_equal_approx(_idle_time, next_timed_event.time):
                 _idle_event_idx += 1
+                var root: Node = get_tree().get_root()
                 for event in next_timed_event.events:
-                    get_tree().get_root().propagate_call("_sreplay_input", [event])
+                    root.propagate_call("_sreplay_input", [event])
+                
+                if _idle_event_idx >= len(recording.idle_input_events) - 1:
+                    break
+                
+                next_timed_event = recording.idle_input_events[_idle_event_idx + 1]
 
 func _physics_process(delta: float) -> void:
     if _mode == Mode.OFF:
         return
     
+    DebugDraw.set_text("tick", _physics_tick)
+    
     if _mode == Mode.RECORDING:
         # we do this on the beginning of this frame so we can accumulate calls to capture from the
         # last frame
         if !_physics_delta.changes.is_empty():
-            _physics_delta.time = _physics_time
+            _physics_delta.time = _physics_time_previous
             recording.physics_deltas.append(_physics_delta)
             _physics_delta = Delta.new()
 
+        _physics_time_previous = _physics_time
         _physics_time += delta
         _update_tick_input(_physics_delta, _physics_input)
 
-        if (_physics_last_snapshot_time - _physics_time) >= recording.physics_snapshot_delay:
-            recording.physics_input_snapshots.append(_physics_input.duplicate())
+        if (_physics_time - _physics_last_snapshot_time) >= recording.physics_snapshot_delay:
+            recording.snapshots.append(
+                Snapshot.new(
+                    _physics_tick,
+                    _physics_time,
+                    len(recording.physics_deltas) - 1,
+                    _idle_time,
+                    len(recording.idle_deltas) - 1,
+                    len(recording.idle_input_events) - 1,
+                    _idle_input.duplicate(),
+                    _physics_input.duplicate(),
+                    _func_user_data.call(),
+                )
+            )
             _physics_last_snapshot_time = _physics_time
         
+        if delta > 0:
+            _physics_tick += 1
         return
 
     if _mode == Mode.REPLAYING:
-        _physics_time += delta
-        if len(recording.physics_deltas) == 0:
-            # TODO: this shouldnt ever be true right?
-            return
-        
+        assert(len(recording.physics_deltas) > 0)
+
         if _physics_delta_idx < len(recording.physics_deltas) - 1:
             var next_delta := recording.physics_deltas[_physics_delta_idx + 1]
-            if _physics_time > next_delta.time or is_equal_approx(_physics_time, next_delta.time):
+            while _physics_time > next_delta.time or is_equal_approx(_physics_time, next_delta.time):
                 _physics_delta_idx += 1
                 _apply_current_delta(next_delta, _physics_input)
+                
+                if _physics_delta_idx >= len(recording.physics_deltas) - 1:
+                    break
+
+                next_delta = recording.physics_deltas[_physics_delta_idx + 1]
+
+        #if _physics_tick < len(recording.snapshots) - 1:
+            #var next_snapshot := recording.snapshots[_physics_tick + 1]
+            #while _physics_time > next_snapshot.physics_time or is_equal_approx(_physics_time, next_snapshot.physics_time):
+                #if _physics_tick >= len(recording.snapshots) - 1:
+                    #break
+
+        if delta > 0:
+            _physics_tick += 1
+        _physics_time += delta
 
 static func _apply_delta_action(
     delta: Delta,
@@ -860,7 +1133,7 @@ func _record_capture(key: StringName, value: Variant) -> void:
 
 func capture(key: StringName, value: Variant) -> Variant:
     match typeof(value):
-        TYPE_OBJECT or TYPE_CALLABLE:
+        TYPE_OBJECT or TYPE_CALLABLE or TYPE_SIGNAL:
             push_error("attempted to capture an Object or Callable, which is not allowed.")
             return value
 

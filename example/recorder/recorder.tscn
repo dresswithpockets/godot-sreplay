@@ -1,7 +1,28 @@
-[gd_scene load_steps=3 format=3 uid="uid://dvxxltoq83k48"]
+[gd_scene load_steps=8 format=3 uid="uid://dvxxltoq83k48"]
 
 [ext_resource type="Theme" uid="uid://dwhusrkn0a2cc" path="res://example/recorder/overlay_theme.tres" id="1_cs5pi"]
 [ext_resource type="Script" uid="uid://djchdtjhvhn7m" path="res://example/recorder/recorder.gd" id="2_86snt"]
+[ext_resource type="Script" uid="uid://bhf657di3x1qx" path="res://example/recorder/srubber.gd" id="3_hsvd8"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bq17g"]
+bg_color = Color(0.10748, 0.10748, 0.10748, 0.501961)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hsvd8"]
+content_margin_left = 8.0
+content_margin_top = 0.0
+content_margin_right = 8.0
+content_margin_bottom = 4.0
+bg_color = Color(1, 1, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ohg4e"]
+bg_color = Color(0.674815, 0.674815, 0.674814, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0ma3c"]
+bg_color = Color(0.683077, 0.683077, 0.683077, 1)
 
 [node name="Recorder" type="Control"]
 layout_mode = 3
@@ -10,6 +31,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 1
 theme = ExtResource("1_cs5pi")
 script = ExtResource("2_86snt")
 
@@ -19,10 +41,12 @@ anchors_preset = 10
 anchor_right = 1.0
 offset_bottom = 23.0
 grow_horizontal = 2
+mouse_filter = 2
 theme_override_constants/margin_left = 8
 theme_override_constants/margin_top = 8
 
 [node name="RecordingLabel" type="Label" parent="OverlayContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
@@ -30,8 +54,134 @@ theme_override_constants/outline_size = 3
 text = "Recording"
 
 [node name="ReplayingLabel" type="Label" parent="OverlayContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 3
 text = "Replaying"
+
+[node name="PlaybackContainer" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="PanelContainer" type="PanelContainer" parent="PlaybackContainer"]
+custom_minimum_size = Vector2(0, 84)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bq17g")
+
+[node name="MarginContainer" type="MarginContainer" parent="PlaybackContainer/PanelContainer"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="PlaybackContainer/PanelContainer/MarginContainer"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="HBoxContainerSpeedButtons" type="HBoxContainer" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="QuarterSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
+layout_mode = 2
+text = "x0.25"
+
+[node name="HalfSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
+layout_mode = 2
+text = "x0.5"
+
+[node name="FullSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
+layout_mode = 2
+text = "x1.0"
+
+[node name="MoreSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
+layout_mode = 2
+text = "x1.5"
+
+[node name="DoubleSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
+layout_mode = 2
+text = "x2.0"
+
+[node name="HBoxContainerPlayControls" type="HBoxContainer" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="RestartButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+layout_mode = 2
+tooltip_text = "Go to beginning"
+text = "⏮"
+
+[node name="BackButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+layout_mode = 2
+tooltip_text = "Step backwards 1 tick"
+text = "⏪"
+
+[node name="PlayPauseButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+layout_mode = 2
+tooltip_text = "Pause/Unpause playback"
+text = "▶/⏸"
+
+[node name="StopButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+layout_mode = 2
+tooltip_text = "Stop playback and close this UI"
+text = "⏹"
+
+[node name="ForwardButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+layout_mode = 2
+tooltip_text = "Step forward 1 tick"
+text = "⏩"
+
+[node name="RightAdjustAlignment" type="Control" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer"]
+custom_minimum_size = Vector2(225, 0)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Scrubber" type="HSlider" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "12:23.456"
+theme_override_styles/slider = SubResource("StyleBoxFlat_hsvd8")
+theme_override_styles/grabber_area = SubResource("StyleBoxFlat_ohg4e")
+theme_override_styles/grabber_area_highlight = SubResource("StyleBoxFlat_0ma3c")
+max_value = 1000.0
+scrollable = false
+tick_count = 50
+ticks_on_borders = true
+script = ExtResource("3_hsvd8")
+
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/QuarterSpeed" to="." method="_speed_button_pressed" binds= [0.25]]
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/HalfSpeed" to="." method="_speed_button_pressed" binds= [0.5]]
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/FullSpeed" to="." method="_speed_button_pressed" binds= [1.0]]
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/MoreSpeed" to="." method="_speed_button_pressed" binds= [1.5]]
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/DoubleSpeed" to="." method="_speed_button_pressed" binds= [2.0]]
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/RestartButton" to="." method="_restart"]
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/BackButton" to="." method="_step_backward"]
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/PlayPauseButton" to="." method="_play_toggle_pressed"]
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/StopButton" to="." method="_command_stop"]
+[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/ForwardButton" to="." method="_step_forward"]
+[connection signal="drag_ended" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/Scrubber" to="." method="_on_scrubber_drag_ended"]

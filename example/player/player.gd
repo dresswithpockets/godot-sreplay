@@ -1,5 +1,7 @@
 class_name Player extends StarstepBody3D
 
+@export var camera: PlayerCamera
+
 @export_group("Movement")
 @export_subgroup("On Ground")
 @export var ground_friction: float = 20.0
@@ -14,16 +16,25 @@ class_name Player extends StarstepBody3D
 @export var air_max_speed: float = 3.0
 @export var max_vertical_speed: float = 15.0
 
-@onready var camera: PlayerCamera = $PlayerCamera
-
 signal moved(delta_position: Vector3)
 
 var vertical_speed: float = 0
 var horizontal_velocity: Vector3 = Vector3.ZERO
 
 func _physics_process(delta: float) -> void:
+    DebugDraw.set_text("delta", str(delta))
+    DebugDraw.set_text("get_physics_process_delta_time", str(get_physics_process_delta_time()))
+
     var wish_dir := get_wish_dir()
     update_velocity(delta, wish_dir)
+    #if !wish_dir.is_zero_approx():
+        #velocity = Vector3(0, 0, ground_max_speed)
+    #else:
+        #velocity = Vector3.ZERO
+
+    DebugDraw.set_text("player.wish_dir", str(wish_dir))
+    DebugDraw.set_text("player.hvelocity", str(horizontal_velocity))
+    DebugDraw.set_text("player.hspeed", str(horizontal_velocity.length()))
 
     # N.B. this is a little game feel hack. It feels kind of weird for the player controller to step
     # up/down when the player isn't pressing any movement keys and speed is low. This prevents that
@@ -31,6 +42,8 @@ func _physics_process(delta: float) -> void:
     step_ignore_horizontal_treshold = wish_dir != Vector3.ZERO
 
     star_move_and_slide()
+    horizontal_velocity = Vector3(velocity.x, 0, velocity.z)
+    vertical_speed = velocity.y
 
     if delta_position != Vector3.ZERO:
         moved.emit(delta_position)
@@ -86,3 +99,14 @@ func apply_gravity(delta: float) -> void:
 
         if vertical_speed < -max_vertical_speed:
             vertical_speed = -max_vertical_speed
+
+func to_state_dict() -> Dictionary:
+    return {
+        "position": var_to_str(global_position),
+        "camera": camera.to_state_dict(),
+    }
+
+func update_state_from_dict(state: Dictionary) -> void:
+    global_position = str_to_var(state["position"])
+    camera.update_state_from_dict(state["camera"])
+    reset_physics_interpolation()

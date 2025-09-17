@@ -6,11 +6,6 @@
 [ext_resource type="PackedScene" uid="uid://c6aonp2o2u4eq" path="res://example/playground/level1.tscn" id="4_gwxg0"]
 [ext_resource type="PackedScene" uid="uid://trya8s6qc0io" path="res://example/playground/level2.tscn" id="5_yok3b"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_duj6w"]
-albedo_texture = ExtResource("1_wnap3")
-uv1_scale = Vector3(10, 10, 10)
-texture_filter = 4
-
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_duj6w"]
 sky_energy_multiplier = 0.9
 ground_bottom_color = Color(0.105882, 0.854902, 0.47451, 1)
@@ -22,14 +17,12 @@ sky_material = SubResource("ProceduralSkyMaterial_duj6w")
 background_mode = 2
 sky = SubResource("Sky_8vnjg")
 
-[node name="Playground" type="Node3D" groups=["sreplay_input"]]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_duj6w"]
+albedo_texture = ExtResource("1_wnap3")
+uv1_scale = Vector3(10, 10, 10)
+texture_filter = 4
 
-[node name="Ground" type="CSGBox3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
-use_collision = true
-collision_mask = 4
-size = Vector3(100, 0.1, 100)
-material = SubResource("StandardMaterial3D_duj6w")
+[node name="Hub" type="Node3D" groups=["sreplay_input"]]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_duj6w")
@@ -40,9 +33,12 @@ light_color = Color(1, 1, 0.815686, 1)
 light_energy = 0.75
 shadow_enabled = true
 
-[node name="Player" parent="." instance=ExtResource("2_6vef6")]
-transform = Transform3D(1.31134e-07, 0, -1, 0, 1, 0, 1, 0, 1.31134e-07, -4, 0, -2.5)
-step_horizontal_threshold = 2.0
+[node name="Ground" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
+use_collision = true
+collision_mask = 4
+size = Vector3(100, 0.1, 100)
+material = SubResource("StandardMaterial3D_duj6w")
 
 [node name="Wall" type="CSGBox3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, 1.5, -2.5)
@@ -64,6 +60,19 @@ size = Vector3(1, 2.5, 2)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.299072, 1.25, -4)
 scene = ExtResource("4_gwxg0")
 
+[node name="Label" type="Label3D" parent="Level1Portal"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1, 1.5, 0)
+billboard = 2
+text = "Level 1"
+
 [node name="Level2Portal" parent="." instance=ExtResource("3_gwxg0")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 1.25, -1)
 scene = ExtResource("5_yok3b")
+
+[node name="Label" type="Label3D" parent="Level2Portal"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1, 1.5, 0)
+billboard = 2
+text = "Level 2"
+
+[node name="Player" parent="." instance=ExtResource("2_6vef6")]
+transform = Transform3D(1.31134e-07, 0, -1, 0, 1, 0, 1, 0, 1.31134e-07, -4, 0, -2.5)
