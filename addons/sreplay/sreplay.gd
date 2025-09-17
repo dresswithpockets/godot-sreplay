@@ -76,6 +76,15 @@ var mode: Mode:
     get:
         return _mode
 
+enum Rate {
+    PAUSED = 0,
+    QUARTER = 1,
+    HALF = 2,
+    FULL = 4,
+    DOUBLE = 8,
+}
+var playback_rate: Rate = Rate.FULL
+
 var current_tick: int:
     get:
         return _physics_tick
@@ -130,12 +139,12 @@ const compatible_input_event_class_names: Array[String] = [
 ## Calls to [Input] differ in behaviour between physics and idle ticks. Replays occasionally take 
 ## full snapshots of the entire input state on idle ticks and on physics ticks, in order to enable 
 ## bidirectional navigation of the replay during playback. You can control how frequently snapshots
-## are captured by varying [param physics_snapshot_period], which specify the amount of time between
+## are captured by varying [param snapshot_period], which specify the amount of time between
 ## each snapshot.
 func record(
     func_user_data: Variant = null,
     length: int = 0,
-    physics_snapshot_period: float = 1.0,
+    snapshot_period: float = 0.5,
 ) -> void:
     if func_user_data:
         if typeof(func_user_data) != TYPE_CALLABLE:
@@ -151,7 +160,7 @@ func record(
     # on the physics tick
     if !Engine.is_in_physics_frame():
         await get_tree().physics_frame
-        record(func_user_data, length, physics_snapshot_period)
+        record(func_user_data, length, snapshot_period)
         return
 
     var user_data: Variant = null
@@ -165,7 +174,7 @@ func record(
     _reset()
     # TODO: support specifying length in Recording to trim the head of the recording as time exceeds the length
     _func_user_data = func_user_data
-    recording = Recording.new(physics_snapshot_period, user_data)
+    recording = Recording.new(snapshot_period, user_data)
     mode_changed.emit(Mode.OFF, _mode)
 
 ## Stops recording a replay on the next physics tick. [br][br]
@@ -203,6 +212,7 @@ func play(func_apply_user_data: Variant = null) -> void:
     if recording.is_empty():
         push_error("attempting to play empty recording")
         return
+    
     
     # in order to ensure the start of our recording is deterministic, mode changes must always occur
     # on the physics tick
@@ -254,26 +264,17 @@ func shift(tick: int, play_until: bool = false) -> void:
     # shifting requires replacing our current state with a snapshot, followed by playback
     # until we get to the correct tick. So, first we need to find the state that correlates to our
     # tick
-    var snapshot: Snapshot = recording.snapshots[0]
-    for next in recording.snapshots:
+    var snapshot: Snapshot
+    for idx in len(recording.snapshots):
+        var next := recording.snapshots[idx]
         if tick < next.physics_tick:
             break
 
         snapshot = next
+        _snapshot_idx = idx
     
     _physics_tick = snapshot.physics_tick
-    _physics_time = snapshot.physics_time
-    _physics_delta_idx = snapshot.physics_delta_idx
-    _physics_input = snapshot.physics_input_state.duplicate()
-    _apply_current_delta(recording.physics_deltas[_physics_delta_idx], _physics_input)
-    
-    _idle_time = snapshot.idle_time
-    _idle_delta_idx = snapshot.idle_delta_idx
-    _idle_event_idx = snapshot.idle_event_idx
-    _idle_input = snapshot.idle_input_state.duplicate()
-    _apply_current_delta(recording.idle_deltas[_idle_delta_idx], _idle_input)
-    
-    _func_apply_user_data.call(snapshot.user_data)
+    _apply_current_snapshot(snapshot)
 
     var root: Node = get_tree().get_root()
     for event in recording.idle_input_events[_idle_event_idx].events:
@@ -284,6 +285,23 @@ func shift(tick: int, play_until: bool = false) -> void:
             await get_tree().physics_frame
     
     shift_finished.emit()
+
+func _apply_current_snapshot(snapshot: Snapshot) -> void:
+    _physics_delta_idx = snapshot.physics_delta_idx
+    _physics_input = snapshot.physics_input_state.duplicate()
+    # TODO: do we need to call _apply_current_delta? The snapshot's input state should include the 
+    #       delta from this snapshot
+    _apply_current_delta(recording.physics_deltas[_physics_delta_idx], _physics_input)
+    
+    _idle_time = snapshot.idle_time
+    _idle_delta_idx = snapshot.idle_delta_idx
+    _idle_event_idx = snapshot.idle_event_idx
+    _idle_input = snapshot.idle_input_state.duplicate()
+    # TODO: do we need to call _apply_current_delta? The snapshot's input state should include the 
+    #       delta from this snapshot
+    _apply_current_delta(recording.idle_deltas[_idle_delta_idx], _idle_input)
+    
+    _func_apply_user_data.call(snapshot.user_data)
 
 enum _DeltaKey {
     Actions_JustPressed,
@@ -337,6 +355,7 @@ class ActionChange extends DeltaChange:
 
 class Delta extends RefCounted:
     var time: float
+    var tick: int
     # if Actions key, then the value is Array[ActionChange]
     var changes: Dictionary[_DeltaKey, Variant]
     
@@ -580,7 +599,6 @@ class TickTime extends RefCounted:
 class Snapshot extends RefCounted:
     ## should always be the physics tick
     var physics_tick: int
-    var physics_time: float
     var physics_delta_idx: int
     var idle_time: float
     var idle_delta_idx: int
@@ -592,7 +610,6 @@ class Snapshot extends RefCounted:
     
     func _init(
         p_physics_tick: int,
-        p_physics_time: float,
         p_physics_delta_idx: int,
         p_idle_time: float,
         p_idle_delta_idx: int,
@@ -602,7 +619,6 @@ class Snapshot extends RefCounted:
         p_user_data: Variant = null
     ) -> void:
         physics_tick = p_physics_tick
-        physics_time = p_physics_time
         physics_delta_idx = p_physics_delta_idx
         idle_time = p_idle_time
         idle_delta_idx = p_idle_delta_idx
@@ -640,7 +656,6 @@ class Snapshot extends RefCounted:
         
         return Snapshot.new(
             physics_tick,
-            physics_time,
             physics_delta_idx,
             idle_time,
             idle_delta_idx,
@@ -652,7 +667,7 @@ class Snapshot extends RefCounted:
 
 ## A recording of all polled inputs, input events, and snapshots.
 class Recording extends RefCounted:
-    var physics_snapshot_delay := 1.0
+    var snapshot_delay := 1.0
     var user_data: Variant
     var max_tick: int
 
@@ -663,10 +678,10 @@ class Recording extends RefCounted:
     # TODO: Node state snapshotting
 
     func _init(
-        p_physics_snapshot_delay: float,
+        p_snapshot_delay: float,
         p_user_data: Variant
     ) -> void:
-        physics_snapshot_delay = p_physics_snapshot_delay
+        snapshot_delay = p_snapshot_delay
         user_data = p_user_data
     
     func is_empty() -> bool:
@@ -674,7 +689,7 @@ class Recording extends RefCounted:
     
     func to_dict() -> Dictionary:
         return {
-            "physics_snapshot_delay": physics_snapshot_delay,
+            "snapshot_delay": snapshot_delay,
             "user_data": user_data,
             "max_tick": max_tick,
 
@@ -685,7 +700,7 @@ class Recording extends RefCounted:
         }
     
     static func from_dict(from: Dictionary) -> Recording:
-        var physics_snapshot_delay: float = from["physics_snapshot_delay"]
+        var snapshot_delay: float = from["snapshot_delay"]
         var user_data: Variant = from.get("user_data")
         var max_tick: int = from["max_tick"]
         
@@ -694,7 +709,7 @@ class Recording extends RefCounted:
         var physics_deltas: Array = from["physics_deltas"]
         var snapshots: Array = from["snapshots"]
         
-        var recording := Recording.new(physics_snapshot_delay, user_data)
+        var recording := Recording.new(snapshot_delay, user_data)
         recording.max_tick = max_tick
         recording.idle_deltas.assign(idle_deltas.map(Delta.from_dict))
         recording.idle_input_events.assign(idle_input_events.map(TimedInputEvents.from_dict))
@@ -717,16 +732,14 @@ var _idle_time: float
 var _idle_input: InputState = InputState.new()
 var _idle_delta_idx: int = -1
 var _idle_event_idx: int = -1
+var _unscaled_physics_time: float
 var _physics_tick: int = 0
-var _physics_time: float
 var _physics_input: InputState = InputState.new()
 var _physics_delta_idx: int = -1
+var _snapshot_idx: int = -1
 
 # only used in recording mode
-var _idle_time_previous: float
-var _idle_last_snapshot_time: float
 var _idle_delta: Delta = Delta.new()
-var _physics_time_previous: float
 var _physics_last_snapshot_time: float
 var _physics_delta: Delta = Delta.new()
 
@@ -737,15 +750,13 @@ func _reset() -> void:
     _idle_input = InputState.new()
     _idle_delta_idx = -1
     _idle_event_idx = -1
+    _unscaled_physics_time = 0
     _physics_tick = 0
-    _physics_time = 0
     _physics_input = InputState.new()
     _physics_delta_idx = -1
-    
-    _idle_time_previous = 0
-    _idle_last_snapshot_time = 0
+    _snapshot_idx = -1
+
     _idle_delta = Delta.new()
-    _physics_time_previous = 0
     _physics_last_snapshot_time = 0
     _physics_delta = Delta.new()
 
@@ -783,8 +794,7 @@ func _unhandled_input(event: InputEvent) -> void:
     #        ...
     #
     
-    if _mode != Mode.REPLAYING:
-        get_tree().get_root().propagate_call("_sreplay_input", [event])
+    _apply_events([event], get_tree().get_root())
 
 func _process(delta: float) -> void:
     if _mode == Mode.OFF:
@@ -794,42 +804,30 @@ func _process(delta: float) -> void:
         # we do this on the beginning of this frame so we can accumulate calls to capture from the
         # last frame
         if !_idle_delta.changes.is_empty():
-            _idle_delta.time = _idle_time_previous
+            _idle_delta.time = _idle_time
             recording.idle_deltas.append(_idle_delta)
-
             _idle_delta = Delta.new()
 
-        _idle_time_previous = _idle_time
         _idle_time += delta
         _update_tick_input(_idle_delta, _idle_input)
 
     if _mode == Mode.REPLAYING:
-        _idle_time += delta
         assert(len(recording.idle_deltas) > 0)
         
-        if _idle_delta_idx < len(recording.idle_deltas) - 1:
-            var next_delta := recording.idle_deltas[_idle_delta_idx + 1]
-            while _idle_time > next_delta.time or is_equal_approx(_idle_time, next_delta.time):
-                _idle_delta_idx += 1
-                _apply_current_delta(next_delta, _idle_input)
+        for idx in range(_idle_delta_idx + 1, len(recording.idle_deltas)):
+            var next := recording.idle_deltas[idx]
+            if _idle_time < next.time and !is_equal_approx(_idle_time, next.time):
+                _idle_delta_idx = idx
+                _apply_current_delta(next, _idle_input)
+        
+        var root: Node = get_tree().get_root()
+        for idx in range(_idle_event_idx + 1, len(recording.idle_input_events)):
+            var next := recording.idle_input_events[idx]
+            if _idle_time > next.time or is_equal_approx(_idle_time, next.time):
+                _idle_event_idx = idx
+                _apply_events(next.events, root)
 
-                if _idle_delta_idx >= len(recording.idle_deltas) - 1:
-                    break
-
-                next_delta = recording.idle_deltas[_idle_delta_idx + 1]
-
-        if _idle_event_idx < len(recording.idle_input_events) - 1:
-            var next_timed_event := recording.idle_input_events[_idle_event_idx + 1]
-            while _idle_time > next_timed_event.time or is_equal_approx(_idle_time, next_timed_event.time):
-                _idle_event_idx += 1
-                var root: Node = get_tree().get_root()
-                for event in next_timed_event.events:
-                    root.propagate_call("_sreplay_input", [event])
-                
-                if _idle_event_idx >= len(recording.idle_input_events) - 1:
-                    break
-                
-                next_timed_event = recording.idle_input_events[_idle_event_idx + 1]
+        _idle_time += delta
 
 func _physics_process(delta: float) -> void:
     if _mode == Mode.OFF:
@@ -841,19 +839,21 @@ func _physics_process(delta: float) -> void:
         # we do this on the beginning of this frame so we can accumulate calls to capture from the
         # last frame
         if !_physics_delta.changes.is_empty():
-            _physics_delta.time = _physics_time_previous
+            _physics_delta.tick = _physics_tick
             recording.physics_deltas.append(_physics_delta)
             _physics_delta = Delta.new()
 
-        _physics_time_previous = _physics_time
-        _physics_time += delta
-        _update_tick_input(_physics_delta, _physics_input)
-
-        if (_physics_time - _physics_last_snapshot_time) >= recording.physics_snapshot_delay:
+        # during recording, we want to capture snapshots occasionally. Snapshots occur every 
+        # `snapshot_delay` seconds, from the very first tick after recording. We wait for changes
+        # to have accumulated from the previous frame before snapshotting.
+        #
+        # snapshots will be used during playback to perform a few operations:
+        # - ensure time is synced for the duration of the playback
+        # - scrubbing/shifting to a particular tick,
+        if (_unscaled_physics_time - _physics_last_snapshot_time) >= recording.snapshot_delay:
             recording.snapshots.append(
                 Snapshot.new(
                     _physics_tick,
-                    _physics_time,
                     len(recording.physics_deltas) - 1,
                     _idle_time,
                     len(recording.idle_deltas) - 1,
@@ -863,35 +863,42 @@ func _physics_process(delta: float) -> void:
                     _func_user_data.call(),
                 )
             )
-            _physics_last_snapshot_time = _physics_time
+            _physics_last_snapshot_time = _unscaled_physics_time
         
-        if delta > 0:
-            _physics_tick += 1
+        _update_tick_input(_physics_delta, _physics_input)
+
+        _unscaled_physics_time += (1.0 / Engine.physics_ticks_per_second)
+        _physics_tick += Rate.FULL
         return
 
     if _mode == Mode.REPLAYING:
         assert(len(recording.physics_deltas) > 0)
+        
+        # we use _physics_tick to determine what our _idle_time and _physics_time should be, based
+        # on the snapshots taken. Then we interpolate _idle_time and _physics_time by adding delta
+        # to them every _process and _physics_process
+        var has_new_snapshot := false
+        for idx in range(_snapshot_idx + 1, len(recording.snapshots)):
+            if _physics_tick < recording.snapshots[idx].physics_tick:
+                break
 
-        if _physics_delta_idx < len(recording.physics_deltas) - 1:
-            var next_delta := recording.physics_deltas[_physics_delta_idx + 1]
-            while _physics_time > next_delta.time or is_equal_approx(_physics_time, next_delta.time):
-                _physics_delta_idx += 1
+            _snapshot_idx = idx
+            has_new_snapshot = true
+        
+        # IMPORTANT: whenever we apply a snapshot, it may cause _idle_time to skip ahead or behind
+        # depending on how the game has been performing in replay. SReplay cannot guarantee that
+        # every idle input state/event is replayed, or that each state/event is replayed only once.
+        # We can only say that it will on average replay every idle-frame state/event about 1 time.
+        if has_new_snapshot:
+            _apply_current_snapshot(recording.snapshots[_snapshot_idx])
+        
+        for idx in range(_physics_delta_idx + 1, len(recording.physics_deltas)):
+            var next_delta := recording.physics_deltas[idx]
+            if _physics_tick >= next_delta.tick:
+                _physics_delta_idx = idx
                 _apply_current_delta(next_delta, _physics_input)
-                
-                if _physics_delta_idx >= len(recording.physics_deltas) - 1:
-                    break
 
-                next_delta = recording.physics_deltas[_physics_delta_idx + 1]
-
-        #if _physics_tick < len(recording.snapshots) - 1:
-            #var next_snapshot := recording.snapshots[_physics_tick + 1]
-            #while _physics_time > next_snapshot.physics_time or is_equal_approx(_physics_time, next_snapshot.physics_time):
-                #if _physics_tick >= len(recording.snapshots) - 1:
-                    #break
-
-        if delta > 0:
-            _physics_tick += 1
-        _physics_time += delta
+        _physics_tick += playback_rate
 
 static func _apply_delta_action(
     delta: Delta,
@@ -997,6 +1004,10 @@ static func _apply_current_delta(delta: Delta, input: InputState) -> void:
         var captures: Dictionary = delta.changes[_DeltaKey.Captures]
         for capture in captures:
             input.captures[capture] = captures[capture]
+
+static func _apply_events(events: Array[InputEvent], root: Node) -> void:
+    for event in events:
+        root.propagate_call("_sreplay_input", [event])
 
 static func _update_tick_input(delta: Delta, input_state: InputState) -> void:
     var mouse_mode := Input.mouse_mode
