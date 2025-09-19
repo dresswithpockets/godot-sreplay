@@ -172,7 +172,11 @@ func record(
 
     _mode = Mode.RECORDING
     _reset()
+    
     # TODO: support specifying length in Recording to trim the head of the recording as time exceeds the length
+
+    # we always want the zeroth tick to have a snapshot
+    _physics_last_snapshot_time = -snapshot_period
     _func_user_data = func_user_data
     recording = Recording.new(snapshot_period, user_data)
     mode_changed.emit(Mode.OFF, _mode)
@@ -274,6 +278,7 @@ func shift(tick: int, play_until: bool = false) -> void:
         _snapshot_idx = idx
     
     _physics_tick = snapshot.physics_tick
+    _sreplay_tick = _physics_tick * Rate.FULL
     _apply_current_snapshot(snapshot)
 
     var root: Node = get_tree().get_root()
@@ -373,12 +378,14 @@ class Delta extends RefCounted:
 
         return {
             "time": delta.time,
+            "tick": delta.tick,
             "changes": changes,
         }
     
     static func from_dict(from: Dictionary) -> Delta:
         var delta := Delta.new()
         delta.time = from["time"]
+        delta.tick = from["tick"]
         delta.changes = {}
         var changes := from["changes"] as Dictionary
         for change in changes:
@@ -631,7 +638,6 @@ class Snapshot extends RefCounted:
     static func to_dict(from: Snapshot) -> Dictionary:
         return {
             "physics_tick": from.physics_tick,
-            "physics_time": from.physics_time,
             "physics_delta_idx": from.physics_delta_idx,
             "idle_time": from.idle_time,
             "idle_delta_idx": from.idle_delta_idx,
@@ -644,7 +650,6 @@ class Snapshot extends RefCounted:
     
     static func from_dict(from: Dictionary) -> Snapshot:
         var physics_tick: int = from["physics_tick"]
-        var physics_time: float = from["physics_time"]
         var physics_delta_idx: int = from["physics_delta_idx"]
         var idle_time: float = from["idle_time"]
         var idle_delta_idx: int = from["idle_delta_idx"]
@@ -733,15 +738,20 @@ var _idle_input: InputState = InputState.new()
 var _idle_delta_idx: int = -1
 var _idle_event_idx: int = -1
 var _unscaled_physics_time: float
+var _sreplay_tick: int = 0
 var _physics_tick: int = 0
 var _physics_input: InputState = InputState.new()
 var _physics_delta_idx: int = -1
 var _snapshot_idx: int = -1
 
 # only used in recording mode
+var _idle_time_previous: float
 var _idle_delta: Delta = Delta.new()
 var _physics_last_snapshot_time: float
 var _physics_delta: Delta = Delta.new()
+
+# only used in replaying mode
+var _sreplay_tick_delta: int = 0
 
 func _reset() -> void:
     _func_user_data = _null_user_data
@@ -751,14 +761,21 @@ func _reset() -> void:
     _idle_delta_idx = -1
     _idle_event_idx = -1
     _unscaled_physics_time = 0
+    _sreplay_tick = 0
     _physics_tick = 0
     _physics_input = InputState.new()
     _physics_delta_idx = -1
     _snapshot_idx = -1
+    _last_physics_usec = 0
+    _min_idle_time = 0
+    _max_idle_time = 0
 
+    _idle_time_previous = 0
     _idle_delta = Delta.new()
     _physics_last_snapshot_time = 0
     _physics_delta = Delta.new()
+    
+    _sreplay_tick_delta = 0
 
 func _record_event(event: InputEvent) -> void:
     if !is_compatible_input_event(event):
@@ -793,30 +810,45 @@ func _unhandled_input(event: InputEvent) -> void:
     #            return
     #        ...
     #
-    
-    _apply_events([event], get_tree().get_root())
+
+    if _mode != Mode.REPLAYING:
+        _apply_events([event], get_tree().get_root())
+
+var _last_physics_usec: int = 0
+var _min_idle_time: float = 0
+var _max_idle_time: float = 0
 
 func _process(delta: float) -> void:
     if _mode == Mode.OFF:
         return
     
+    DebugDraw.set_text("tick", _physics_tick)
+    
     if _mode == Mode.RECORDING:
         # we do this on the beginning of this frame so we can accumulate calls to capture from the
         # last frame
         if !_idle_delta.changes.is_empty():
-            _idle_delta.time = _idle_time
+            _idle_delta.time = _idle_time_previous
             recording.idle_deltas.append(_idle_delta)
             _idle_delta = Delta.new()
 
+        _idle_time_previous = _idle_time
         _idle_time += delta
         _update_tick_input(_idle_delta, _idle_input)
 
     if _mode == Mode.REPLAYING:
         assert(len(recording.idle_deltas) > 0)
-        
+
+        # scaling our max idle time based on our playtime. if we're playing at quarter speed, then
+        # idle shouldn't exceed a fourth of the usual frame time
+        var seconds_per_ptick := 1.0 / float(Engine.physics_ticks_per_second)
+        var sticks_per_ptick := _sreplay_tick_delta / float(Rate.FULL)
+        var max_idle_time := _min_idle_time + sticks_per_ptick * seconds_per_ptick
+        _idle_time = clampf(_idle_time, _min_idle_time, max_idle_time)
+
         for idx in range(_idle_delta_idx + 1, len(recording.idle_deltas)):
             var next := recording.idle_deltas[idx]
-            if _idle_time < next.time and !is_equal_approx(_idle_time, next.time):
+            if _idle_time > next.time or is_equal_approx(_idle_time, next.time):
                 _idle_delta_idx = idx
                 _apply_current_delta(next, _idle_input)
         
@@ -830,19 +862,18 @@ func _process(delta: float) -> void:
         # we still want to scale time based on the playback rate. Rate constants are a all relative
         # to the fullspeed constant Rate.FULL. So Rate.HALF = 4 would result in 50% speed, or a 0.5
         # multiplayer
-        _idle_time += delta * (playback_rate / Rate.FULL)
+        _idle_time += delta
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
     if _mode == Mode.OFF:
         return
-    
-    DebugDraw.set_text("tick", _physics_tick)
     
     if _mode == Mode.RECORDING:
         # we do this on the beginning of this frame so we can accumulate calls to capture from the
         # last frame
         if !_physics_delta.changes.is_empty():
-            _physics_delta.tick = _physics_tick
+            _physics_delta.time = _idle_time
+            _physics_delta.tick = _physics_tick - 1
             recording.physics_deltas.append(_physics_delta)
             _physics_delta = Delta.new()
 
@@ -858,7 +889,7 @@ func _physics_process(delta: float) -> void:
                 Snapshot.new(
                     _physics_tick,
                     len(recording.physics_deltas) - 1,
-                    _idle_time,
+                    _idle_time_previous,
                     len(recording.idle_deltas) - 1,
                     len(recording.idle_input_events) - 1,
                     _idle_input.duplicate(),
@@ -871,12 +902,12 @@ func _physics_process(delta: float) -> void:
         _update_tick_input(_physics_delta, _physics_input)
 
         _unscaled_physics_time += (1.0 / Engine.physics_ticks_per_second)
-        _physics_tick += Rate.FULL
+        _physics_tick += 1
         return
 
     if _mode == Mode.REPLAYING:
         assert(len(recording.physics_deltas) > 0)
-        
+
         # we use _physics_tick to determine what our _idle_time and _physics_time should be, based
         # on the snapshots taken. Then we interpolate _idle_time and _physics_time by adding delta
         # to them every _process and _physics_process
@@ -894,14 +925,25 @@ func _physics_process(delta: float) -> void:
         # We can only say that it will on average replay every idle-frame state/event about 1 time.
         if has_new_snapshot:
             _apply_current_snapshot(recording.snapshots[_snapshot_idx])
-        
+            pass
+
         for idx in range(_physics_delta_idx + 1, len(recording.physics_deltas)):
             var next_delta := recording.physics_deltas[idx]
-            if _physics_tick >= next_delta.tick:
-                _physics_delta_idx = idx
-                _apply_current_delta(next_delta, _physics_input)
+            if _physics_tick < next_delta.tick:
+                break
 
-        _physics_tick += playback_rate
+            _physics_delta_idx = idx
+            _apply_current_delta(next_delta, _physics_input)
+
+        _min_idle_time = _idle_time
+
+        var previous_tick := _sreplay_tick
+        _sreplay_tick += playback_rate
+        if playback_rate != Rate.PAUSED:
+            _sreplay_tick -= _sreplay_tick % playback_rate
+        
+        _sreplay_tick_delta = _sreplay_tick - previous_tick
+        _physics_tick = _sreplay_tick / Rate.FULL
 
 static func _apply_delta_action(
     delta: Delta,

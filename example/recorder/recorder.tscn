@@ -25,6 +25,7 @@ bg_color = Color(0.674815, 0.674815, 0.674814, 1)
 bg_color = Color(0.683077, 0.683077, 0.683077, 1)
 
 [node name="Recorder" type="Control"]
+process_mode = 3
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -104,23 +105,27 @@ layout_mode = 2
 mouse_filter = 2
 
 [node name="QuarterSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "x0.25"
 
 [node name="HalfSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "x0.5"
 
 [node name="FullSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "x1.0"
 
-[node name="MoreSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
-layout_mode = 2
-text = "x1.5"
-
 [node name="DoubleSpeed" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons"]
+unique_name_in_owner = true
 layout_mode = 2
+toggle_mode = true
 text = "x2.0"
 
 [node name="HBoxContainerPlayControls" type="HBoxContainer" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer"]
@@ -156,7 +161,7 @@ tooltip_text = "Step forward 1 tick"
 text = "⏩"
 
 [node name="RightAdjustAlignment" type="Control" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer"]
-custom_minimum_size = Vector2(225, 0)
+custom_minimum_size = Vector2(181, 0)
 layout_mode = 2
 mouse_filter = 2
 
@@ -174,14 +179,14 @@ tick_count = 50
 ticks_on_borders = true
 script = ExtResource("3_hsvd8")
 
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/QuarterSpeed" to="." method="_speed_button_pressed" binds= [0.25]]
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/HalfSpeed" to="." method="_speed_button_pressed" binds= [0.5]]
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/FullSpeed" to="." method="_speed_button_pressed" binds= [1.0]]
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/MoreSpeed" to="." method="_speed_button_pressed" binds= [1.5]]
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/DoubleSpeed" to="." method="_speed_button_pressed" binds= [2.0]]
+[connection signal="toggled" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/QuarterSpeed" to="." method="_quarter_speed_toggled"]
+[connection signal="toggled" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/HalfSpeed" to="." method="_half_speed_toggled"]
+[connection signal="toggled" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/FullSpeed" to="." method="_full_speed_toggled"]
+[connection signal="toggled" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/DoubleSpeed" to="." method="_double_speed_toggled"]
 [connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/RestartButton" to="." method="_restart"]
 [connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/BackButton" to="." method="_step_backward"]
 [connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/PlayPauseButton" to="." method="_play_toggle_pressed"]
 [connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/StopButton" to="." method="_command_stop"]
 [connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/ForwardButton" to="." method="_step_forward"]
 [connection signal="drag_ended" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/Scrubber" to="." method="_on_scrubber_drag_ended"]
+[connection signal="drag_started" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/Scrubber" to="." method="_on_scrubber_drag_started"]

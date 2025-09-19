@@ -5,12 +5,13 @@ extends Control
 
 @onready var _playback_control: Control = %PlaybackContainer
 @onready var _scrubber: HSlider = %Scrubber
+var _scrubber_dragging: bool = false
 
 var _font_color: Color = Color.WHITE
 var _font_outline_color: Color = Color.BLACK
 var _time: float = 0
 
-var _speed_control: float = 1.0
+var _speed_control: SReplay.Rate = SReplay.Rate.FULL
 
 func _get_current_state() -> Dictionary:
     var player: Player = get_tree().get_first_node_in_group("player")
@@ -24,8 +25,9 @@ func _set_current_state(state: Dictionary, always_change_scene: bool) -> void:
     var player_state: Dictionary = state["player"]
     
     var tree: SceneTree = get_tree()
-    if always_change_scene or tree.get_root().scene_file_path != scene_path:
-        assert(tree.change_scene_to_file(scene_path) == OK)
+    if always_change_scene or tree.current_scene.scene_file_path != scene_path:
+        var scene: PackedScene = load(scene_path)
+        assert(tree.change_scene_to_packed(scene) == OK)
         await tree.process_frame
         await tree.process_frame
     
@@ -49,23 +51,25 @@ func _command_stop() -> void:
         return
     
     SReplay.stop()
-    Console.print_info("Stopped recording.")
-    Engine.time_scale = 1.0
+    get_tree().paused = false
+    Console.print_info("Stopped recording/replaying.")
 
 func _command_play() -> void:
     if SReplay.mode != SReplay.Mode.OFF:
         Console.print_error("Already recording or playing a replay")
         return
     
-    assert(SReplay.recording.user_data is Dictionary)
-    _set_current_state(SReplay.recording.user_data, true)
+    #assert(SReplay.recording.user_data is Dictionary)
+    #@warning_ignore("unsafe_call_argument")
+    #_set_current_state(SReplay.recording.user_data, true)
 
     # playing on the idle frame is undefined behaviour
     await get_tree().physics_frame
     SReplay.play(
         func(user_data: Variant) -> void:
-            if user_data != null:
-                _set_current_state(user_data, false)
+            assert(user_data is Dictionary)
+            @warning_ignore("unsafe_call_argument")
+            _set_current_state(user_data, false)
     )
     Console.print_info("Playing...")
 
@@ -106,8 +110,11 @@ func _command_load(path: String) -> void:
         return
     
     var json := file.get_as_text(true)
-    var dict = JSON.parse_string(json)
-    var recording := SReplay.Recording.from_dict(dict)
+    var result: Variant = JSON.parse_string(json)
+    
+    assert(result is Dictionary)
+    @warning_ignore("unsafe_call_argument")
+    var recording := SReplay.Recording.from_dict(result)
     if recording.is_empty():
         Console.print_error("Can't load an empty replay")
         return
@@ -116,48 +123,84 @@ func _command_load(path: String) -> void:
     Console.print_info("Loaded replay from '%s'" % path)
 
 func _command_pause() -> void:
-    await get_tree().physics_frame
-    Engine.time_scale = 0.0
+    SReplay.playback_rate = SReplay.Rate.PAUSED
+    get_tree().paused = true
 
 func _command_unpause() -> void:
-    await get_tree().physics_frame
-    Engine.time_scale = _speed_control
+    SReplay.playback_rate = _speed_control
+    Engine.time_scale = _speed_control / float(SReplay.Rate.FULL)
+    get_tree().paused = false
 
 func _play_toggle_pressed() -> void:
-    if Engine.time_scale == 0:
-        Engine.time_scale = _speed_control
+    if SReplay.playback_rate == SReplay.Rate.PAUSED:
+        SReplay.playback_rate = _speed_control
+        Engine.time_scale = _speed_control / float(SReplay.Rate.FULL)
+        get_tree().paused = false
     else:
-        Engine.time_scale = 0
+        SReplay.playback_rate = SReplay.Rate.PAUSED
+        get_tree().paused = true
 
 func _restart() -> void:
-    await get_tree().physics_frame
-
-    Engine.time_scale = 0
+    SReplay.playback_rate = SReplay.Rate.PAUSED
+    get_tree().paused = true
     SReplay.restart()
 
     assert(SReplay.recording.user_data is Dictionary)
+    @warning_ignore("unsafe_call_argument")
     _set_current_state(SReplay.recording.user_data, true)
 
 func _step_forward() -> void:
-    Engine.time_scale = 1
+    SReplay.playback_rate = SReplay.Rate.FULL
+    get_tree().paused = false
     await get_tree().physics_frame
-    Engine.time_scale = 0
+    get_tree().paused = true
+    SReplay.playback_rate = SReplay.Rate.PAUSED
 
 func _step_backward() -> void:
-    if SReplay.current_tick == 0 or SReplay.shift_finished.is_connected(_step_backward_shift_finished):
+    if SReplay.current_tick == 0 or SReplay.shift_finished.is_connected(_on_step_shift_finished):
         return
 
-    Engine.time_scale = 1
-    SReplay.shift_finished.connect(_step_backward_shift_finished, CONNECT_ONE_SHOT)
+    get_tree().paused = false
+    SReplay.shift_finished.connect(_on_step_shift_finished, CONNECT_ONE_SHOT)
     SReplay.shift(SReplay.current_tick - 2, true)
 
-func _step_backward_shift_finished() -> void:
-    Engine.time_scale = 0
+func _on_step_shift_finished() -> void:
+    get_tree().paused = true
 
-func _speed_button_pressed(speed: float) -> void:
-    _speed_control = speed
-    if Engine.time_scale != 0:
-        Engine.time_scale = _speed_control
+func _toggle_group_button_toggled(
+    on: bool,
+    button: Button,
+    others: Array[Button],
+    rate: SReplay.Rate
+) -> void:
+    if !on:
+        button.set_pressed_no_signal(true)
+        return
+
+    for other in others:
+        other.set_pressed_no_signal(false)
+
+    _speed_control = rate
+    if SReplay.playback_rate != SReplay.Rate.PAUSED:
+        SReplay.playback_rate = _speed_control
+        Engine.time_scale = _speed_control / float(SReplay.Rate.FULL)
+        pass
+
+func _quarter_speed_toggled(on: bool) -> void:
+    @warning_ignore("unsafe_call_argument")
+    _toggle_group_button_toggled(on, %QuarterSpeed, [%HalfSpeed, %FullSpeed, %DoubleSpeed], SReplay.Rate.QUARTER)
+
+func _half_speed_toggled(on: bool) -> void:
+    @warning_ignore("unsafe_call_argument")
+    _toggle_group_button_toggled(on, %HalfSpeed, [%QuarterSpeed, %FullSpeed, %DoubleSpeed], SReplay.Rate.HALF)
+
+func _full_speed_toggled(on: bool) -> void:
+    @warning_ignore("unsafe_call_argument")
+    _toggle_group_button_toggled(on, %FullSpeed, [%HalfSpeed, %QuarterSpeed, %DoubleSpeed], SReplay.Rate.FULL)
+
+func _double_speed_toggled(on: bool) -> void:
+    @warning_ignore("unsafe_call_argument")
+    _toggle_group_button_toggled(on, %DoubleSpeed, [%HalfSpeed, %FullSpeed, %QuarterSpeed], SReplay.Rate.DOUBLE)
 
 func _sreplay_mode_changed(_old: SReplay.Mode, new: SReplay.Mode) -> void:
     if new != SReplay.Mode.REPLAYING:
@@ -202,11 +245,16 @@ func _process(delta: float) -> void:
     _replaying_label.add_theme_color_override("font_color", _font_color)
     _replaying_label.add_theme_color_override("font_outline_color", _font_outline_color)
 
+    if SReplay.mode == SReplay.Mode.REPLAYING && !_scrubber_dragging:
+        _scrubber.set_value_no_signal(SReplay.current_tick)
+        _scrubber.tooltip_text = str(SReplay.current_tick)
+
+func _on_scrubber_drag_started() -> void:
+    _scrubber_dragging = true
 
 func _on_scrubber_drag_ended(value_changed: bool) -> void:
+    _scrubber_dragging = false
     if !value_changed or SReplay.mode != SReplay.Mode.REPLAYING:
         return
-    
-    Engine.time_scale = 1
-    SReplay.shift_finished.connect(_step_backward_shift_finished, CONNECT_ONE_SHOT)
-    SReplay.shift(roundi(_scrubber.value), true)
+
+    SReplay.shift(roundi(_scrubber.value), false)
