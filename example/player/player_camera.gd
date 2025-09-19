@@ -11,6 +11,7 @@ var pitch: Basis = Basis.IDENTITY
 
 func _sreplay_input(event: InputEvent) -> void:
     if event is InputEventMouseMotion and SReplay.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+        @warning_ignore("unsafe_property_access", "unsafe_call_argument")
         move_camera(event.screen_relative)
 
 func move_camera(relative_move: Vector2) -> void:
@@ -24,12 +25,20 @@ func move_camera(relative_move: Vector2) -> void:
 
 func to_state_dict() -> Dictionary:
     return {
+        "global_position": var_to_str(global_position),
         "yaw": var_to_str(yaw),
         "pitch": var_to_str(pitch),
     }
 
 func update_state_from_dict(state: Dictionary) -> void:
+    #@warning_ignore("unsafe_call_argument", "unsafe_cast")
+    #global_position = str_to_var(state["global_position"])
+    #reset_physics_interpolation()
+
+    @warning_ignore("unsafe_call_argument", "unsafe_cast")
     yaw = str_to_var(state["yaw"]) as Basis
+
+    @warning_ignore("unsafe_call_argument", "unsafe_cast")
     pitch = str_to_var(state["pitch"]) as Basis
 
 func _ready() -> void:
@@ -48,4 +57,4 @@ func _physics_process(_delta: float) -> void:
     yaw = SReplay.capture(replay_player_camera_yaw, yaw)
     pitch = SReplay.capture(replay_player_camera_pitch, pitch)
     global_basis = yaw * pitch
-    global_position = SReplay.capture(replay_player_camera_position, global_position)
+    #global_position = SReplay.capture(replay_player_camera_position, global_position)

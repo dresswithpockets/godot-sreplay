@@ -3,7 +3,7 @@ class_name Math
 const GodotToTb: float = 32.0
 const TbToGodot := 1.0 / GodotToTb
 
-static func exp_decay(a, b, decay: float, delta: float):
+static func exp_decay(a: Variant, b: Variant, decay: float, delta: float) -> Variant:
     return b + (a - b) * exp(-decay * delta)
 
 static func exp_decay_f(a: float, b: float, decay: float, delta: float) -> float:

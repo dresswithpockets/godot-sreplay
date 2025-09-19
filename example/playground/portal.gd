@@ -4,10 +4,7 @@ class_name Portal extends Node
 
 var _portaling: bool = false
 
-func _ready() -> void:
-    $Area.body_entered.connect(_player_entered)
-
-func _player_entered(node: Node3D) -> void:
+func _player_entered(_node: Node3D) -> void:
     if _portaling:
         return
 

@@ -89,7 +89,7 @@ func apply_gravity(delta: float) -> void:
     if vertical_speed > -max_vertical_speed:
         # jolt still returns 0 total_gravity :(
         # var gravity := PhysicsServer3D.body_get_direct_state(get_rid()).total_gravity
-        var gravity = Vector3.DOWN * 10
+        var gravity := Vector3.DOWN * 10
         if vertical_speed > 0 or is_on_floor():
             gravity *= gravity_up_scale
         else:
@@ -107,6 +107,9 @@ func to_state_dict() -> Dictionary:
     }
 
 func update_state_from_dict(state: Dictionary) -> void:
+    @warning_ignore("unsafe_call_argument", "unsafe_cast")
     global_position = str_to_var(state["position"])
-    camera.update_state_from_dict(state["camera"])
     reset_physics_interpolation()
+
+    @warning_ignore("unsafe_call_argument", "unsafe_cast")
+    camera.update_state_from_dict(state["camera"])

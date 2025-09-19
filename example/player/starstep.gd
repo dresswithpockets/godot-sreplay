@@ -91,7 +91,7 @@ func _step_up(delta: float) -> void:
         # don't bother if we don't hit anything
         return
 
-    var floor_angle = result.get_normal().angle_to(Vector3.UP)
+    var floor_angle := result.get_normal().angle_to(Vector3.UP)
     if absf(floor_angle) > floor_max_angle:
         return
 

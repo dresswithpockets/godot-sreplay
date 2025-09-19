@@ -8,13 +8,16 @@ func _unhandled_input(event: InputEvent) -> void:
         return
 
     if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+        @warning_ignore("unsafe_property_access")
         if event is InputEventKey and event.keycode == KEY_ESCAPE:
             Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
     else:
+        @warning_ignore("unsafe_property_access")
         if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
             Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _ready() -> void:
+    process_mode = PROCESS_MODE_ALWAYS
     _last_mouse_mode = Input.mouse_mode
     Console.console_opened.connect(_console_opened)
     Console.console_closed.connect(_console_closed)
