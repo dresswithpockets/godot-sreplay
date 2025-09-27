@@ -112,6 +112,33 @@ func _command_play() -> void:
     )
     Console.print_info("Playing...")
 
+func _serialize_json(recording: SReplay.Recording, compress: bool) -> PackedByteArray:
+    assert(!recording.is_empty())
+
+    var dict := recording.to_dict()
+    var json := JSON.stringify(dict)
+    var bytes := json.to_utf8_buffer()
+    assert(!bytes.is_empty())
+    
+    if compress:
+        bytes = bytes.compress(FileAccess.COMPRESSION_GZIP)
+    
+    return bytes
+
+func _deserialize_json(bytes: PackedByteArray, decompress: bool) -> SReplay.Recording:
+    assert(!bytes.is_empty())
+    
+    if decompress:
+        const max_size := 1024 * 1024 * 1024 * 512
+        bytes = bytes.decompress_dynamic(max_size, FileAccess.COMPRESSION_GZIP)
+
+    var json := bytes.get_string_from_utf8()
+    var dict: Variant = JSON.parse_string(json)
+    assert(dict is Dictionary)
+
+    @warning_ignore("unsafe_call_argument")
+    return SReplay.Recording.from_dict(dict)
+
 func _command_save(path: String) -> void:
     if SReplay.mode != SReplay.Mode.OFF:
         Console.print_error("Can't save while recording or replaying a replay")
@@ -122,17 +149,20 @@ func _command_save(path: String) -> void:
         Console.print_error("Can't save an empty replay")
         return
     
-    if !path.ends_with(".json"):
+    var compressed_mode := false
+    if path.ends_with(".gz"):
+        compressed_mode = true
+    elif !path.ends_with(".json"):
         path += ".json"
     
-    var as_dict := recording.to_dict()
-    var as_json := JSON.stringify(as_dict, "  ")
+    var serialized := _serialize_json(recording, compressed_mode)
+    
     var file := FileAccess.open("user://replays/%s" % path, FileAccess.WRITE)
     if !file or !file.is_open():
         Console.print_error("Failed to save replay at '%s'" % path)
         return
     
-    file.store_string(as_json)
+    file.store_buffer(serialized)
     Console.print_info("Saved replay at '%s'" % path)
 
 func _command_load(path: String) -> void:
@@ -140,20 +170,18 @@ func _command_load(path: String) -> void:
         Console.print_error("Can't load a replay while recording or replaying")
         return
     
-    if !path.ends_with(".json"):
+    var compressed_mode := false
+    if path.ends_with(".gz"):
+        compressed_mode = true
+    elif !path.ends_with(".json"):
         path += ".json"
     
-    var file := FileAccess.open("user://replays/%s" % path, FileAccess.READ)
-    if !file or !file.is_open():
-        Console.print_error("Error opening replay at '%s'" % path)
+    var buffer := FileAccess.get_file_as_bytes("user://replays/%s" % path)
+    if buffer.is_empty():
+        Console.print_error("Error opening replay at '%s': %s" % [path, FileAccess.get_open_error()])
         return
-    
-    var json := file.get_as_text(true)
-    var result: Variant = JSON.parse_string(json)
-    
-    assert(result is Dictionary)
-    @warning_ignore("unsafe_call_argument")
-    var recording := SReplay.Recording.from_dict(result)
+
+    var recording := _deserialize_json(buffer, compressed_mode)
     if recording.is_empty():
         Console.print_error("Can't load an empty replay")
         return
