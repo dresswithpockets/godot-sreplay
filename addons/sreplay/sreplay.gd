@@ -205,7 +205,9 @@ func stop() -> void:
         stop()
         return
 
-    recording.max_tick = _physics_tick
+    if _mode == Mode.RECORDING:
+        recording.max_tick = _physics_tick
+
     _reset()
 
     var old_mode := _mode
