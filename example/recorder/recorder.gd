@@ -100,6 +100,10 @@ func _command_play() -> void:
     # playing on the idle frame is undefined behaviour
     await get_tree().physics_frame
     await get_tree().physics_frame
+    
+    _scrubber.max_value = SReplay.recording.max_tick
+
+    SReplay.playback_rate = _speed_control
     SReplay.play(
         func(user_data: Variant) -> void:
             assert(user_data is Dictionary)
@@ -239,7 +243,6 @@ func _enable_controls() -> void:
 func _sreplay_mode_changed(_old: SReplay.Mode, new: SReplay.Mode) -> void:
     if new != SReplay.Mode.REPLAYING:
         _playback_control.visible = false
-        _scrubber.max_value = SReplay.recording.max_tick
 
 func _sreplay_seek_finished() -> void:
     _enable_controls()
@@ -320,4 +323,5 @@ func _on_scrubber_drag_ended(value_changed: bool) -> void:
         return
 
     _disable_controls()
+    SReplay.playback_rate = SReplay.Rate.PAUSED
     SReplay.seek(roundi(_scrubber.value), true)
