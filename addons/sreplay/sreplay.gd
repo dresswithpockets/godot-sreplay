@@ -62,7 +62,8 @@ extends Node
 
 signal mode_changed(old: Mode, new: Mode)
 signal shift_started(user_data: Variant)
-signal shift_finished
+signal seek_finished
+signal playback_rate_changed(old: Rate, new: Rate)
 
 enum Mode {
     OFF, ## No replay is being recorded or played back
@@ -83,7 +84,16 @@ enum Rate {
     FULL = 4,
     DOUBLE = 8,
 }
-var playback_rate: Rate = Rate.FULL
+var playback_rate: Rate = Rate.FULL:
+    get:
+        return playback_rate
+    set(r):
+        if r == playback_rate:
+            return
+
+        var old_rate := playback_rate
+        playback_rate = r
+        playback_rate_changed.emit(old_rate, r)
 
 var current_tick: int:
     get:
@@ -133,8 +143,8 @@ const compatible_input_event_class_names: Array[String] = [
 ##
 ## By default, this will record an arbitrarily-long replay until stop is called. However, if 
 ## [param length] is greater than 0, then the recording will be created in buffered mode. After 
-## [param length]-seconds have passed in the recording, then the beginning of the replay will be
-## trimmed to keep the recording at [param length]-seconds in length. [br][br]
+## [param length]-snapshots have passed in the recording, then the beginning of the replay will be
+## trimmed to keep the recording at [param length]-snapshots in length. [br][br]
 ##
 ## Calls to [Input] differ in behaviour between physics and idle ticks. Replays occasionally take 
 ## full snapshots of the entire input state on idle ticks and on physics ticks, in order to enable 
@@ -253,43 +263,54 @@ func restart() -> void:
     
     _reset()
 
-func shift(tick: int, play_until: bool = false) -> void:
+func seek(tick: int, play_until: bool = false) -> void:
     if _mode != Mode.REPLAYING:
-        push_error("attempted to shift playback, but SReplay isn't playing back a replay")
+        push_error("attempted to seek playback, but SReplay isn't playing back a replay")
         return
     
     if tick == 0:
         restart()
+        seek_finished.emit()
         return
     
     if _physics_tick == tick:
+        seek_finished.emit()
         return
     
-    # shifting requires replacing our current state with a snapshot, followed by playback
-    # until we get to the correct tick. So, first we need to find the state that correlates to our
-    # tick
+    # saeeking requires replacing our current state with a snapshot, followed by playback until we
+    # get to the correct tick. So, first we need to find the state that correlates to our tick
     var snapshot: Snapshot
+    var new_idx := 0
     for idx in len(recording.snapshots):
         var next := recording.snapshots[idx]
         if tick < next.physics_tick:
             break
 
         snapshot = next
-        _snapshot_idx = idx
-    
-    _physics_tick = snapshot.physics_tick
-    _sreplay_tick = _physics_tick * Rate.FULL
-    _apply_current_snapshot(snapshot)
+        new_idx = idx
 
-    var root: Node = get_tree().get_root()
-    for event in recording.idle_input_events[_idle_event_idx].events:
-        root.propagate_call("_sreplay_input", [event])
-    
+    if new_idx != _snapshot_idx or tick < _physics_tick:
+        _snapshot_idx = new_idx
+        _physics_tick = snapshot.physics_tick
+        _sreplay_tick = _physics_tick * Rate.FULL
+        _apply_current_snapshot(snapshot)
+
+        var root: Node = get_tree().get_root()
+        for event in recording.idle_input_events[_idle_event_idx].events:
+            root.propagate_call("_sreplay_input", [event])
+
     if play_until and tick != _physics_tick:
-        while _physics_tick != tick:
-            await get_tree().physics_frame
+        assert(tick > _physics_tick)
+        
+        var tick_diff := tick - _physics_tick
+        var old_rate := playback_rate
+
+        playback_rate = tick_diff * Rate.FULL
+        await get_tree().physics_frame
+        await get_tree().physics_frame
+        playback_rate = old_rate
     
-    shift_finished.emit()
+    seek_finished.emit()
 
 func _apply_current_snapshot(snapshot: Snapshot) -> void:
     _physics_delta_idx = snapshot.physics_delta_idx
@@ -297,7 +318,7 @@ func _apply_current_snapshot(snapshot: Snapshot) -> void:
     # TODO: do we need to call _apply_current_delta? The snapshot's input state should include the 
     #       delta from this snapshot
     _apply_current_delta(recording.physics_deltas[_physics_delta_idx], _physics_input)
-    
+
     _idle_time = snapshot.idle_time
     _idle_delta_idx = snapshot.idle_delta_idx
     _idle_event_idx = snapshot.idle_event_idx
@@ -749,6 +770,7 @@ var _idle_time_previous: float
 var _idle_delta: Delta = Delta.new()
 var _physics_last_snapshot_time: float
 var _physics_delta: Delta = Delta.new()
+var _retro_max_snapshots: int = 0
 
 # only used in replaying mode
 var _sreplay_tick_delta: int = 0
@@ -898,6 +920,29 @@ func _physics_process(_delta: float) -> void:
                 )
             )
             _physics_last_snapshot_time = _unscaled_physics_time
+            
+            if _retro_max_snapshots > 0 and len(recording.snapshots) > _retro_max_snapshots:
+                # if we have 35 snapshots, and the max is 30, then we need to remove 5 snapshots
+                # and the new head will be the 6th one.
+                var snapshots_to_remove := len(recording.snapshots) - _retro_max_snapshots
+                recording.snapshots = recording.snapshots.slice(snapshots_to_remove)
+                
+                # we trim deltas & events up to this snapshot
+                var new_head := recording.snapshots[0]
+                recording.idle_deltas = recording.idle_deltas.slice(new_head.idle_delta_idx)
+                recording.idle_input_events = recording.idle_input_events.slice(new_head.idle_event_idx)
+                recording.physics_deltas = recording.physics_deltas.slice(new_head.physics_delta_idx)
+                _idle_time_previous -= new_head.idle_time
+                _idle_time -= new_head.idle_time
+                _physics_tick -= new_head.physics_tick
+                
+                for snapshot_idx in range(len(recording.snapshots) - 1, 0, -1):
+                    var snapshot := recording.snapshots[snapshot_idx]
+                    snapshot.idle_delta_idx -= new_head.idle_delta_idx
+                    snapshot.idle_event_idx -= new_head.idle_event_idx
+                    snapshot.idle_time -= new_head.idle_time
+                    snapshot.physics_delta_idx -= new_head.physics_delta_idx
+                    snapshot.physics_tick -= new_head.physics_tick
         
         _update_tick_input(_physics_delta, _physics_input)
 
@@ -939,8 +984,8 @@ func _physics_process(_delta: float) -> void:
 
         var previous_tick := _sreplay_tick
         _sreplay_tick += playback_rate
-        if playback_rate != Rate.PAUSED:
-            _sreplay_tick -= _sreplay_tick % playback_rate
+        #if playback_rate != Rate.PAUSED:
+            #_sreplay_tick -= _sreplay_tick % playback_rate
         
         _sreplay_tick_delta = _sreplay_tick - previous_tick
         _physics_tick = _sreplay_tick / Rate.FULL

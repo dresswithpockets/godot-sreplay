@@ -36,7 +36,6 @@ gdscript/warnings/unsafe_call_argument=1
 
 window/size/viewport_width=1920
 window/size/viewport_height=1080
-window/vsync/vsync_mode=0
 
 [editor_plugins]
 
@@ -46,6 +45,7 @@ enabled=PackedStringArray("res://addons/console/plugin.cfg", "res://addons/srepl
 
 sreplay_input="Group of nodes that must recent input events in sreplay playback"
 player=""
+tracked_bodies=""
 
 [input]
 

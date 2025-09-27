@@ -5,6 +5,7 @@ extends Control
 
 @onready var _playback_control: Control = %PlaybackContainer
 @onready var _scrubber: HSlider = %Scrubber
+@onready var _all_buttons: Array[Node] = %PlaybackContainer.find_children("*", "Button")
 var _scrubber_dragging: bool = false
 
 var _font_color: Color = Color.WHITE
@@ -15,21 +16,54 @@ var _speed_control: SReplay.Rate = SReplay.Rate.FULL
 
 func _get_current_state() -> Dictionary:
     var player: Player = get_tree().get_first_node_in_group("player")
+    var tracked_bodies := get_tree().get_nodes_in_group("tracked_bodies")
+    var body_data: Array[Dictionary] = []
+    for node in tracked_bodies:
+        assert(node is RigidBody3D)
+        @warning_ignore("unsafe_cast")
+        var body: RigidBody3D = node
+        body_data.append({
+            "path": body.get_path(),
+            "position": var_to_str(body.global_position),
+            "rotation": var_to_str(body.global_basis),
+            "linear_velocity": var_to_str(body.linear_velocity),
+            "angular_velocity": var_to_str(body.angular_velocity)
+        })
     return {
         "scene_path": get_tree().current_scene.scene_file_path,
         "player": player.to_state_dict(),
+        "body_data": body_data,
     }
 
 func _set_current_state(state: Dictionary, always_change_scene: bool) -> void:
     var scene_path: String = state["scene_path"]
     var player_state: Dictionary = state["player"]
+    var body_data: Array = state["body_data"]
     
     var tree: SceneTree = get_tree()
-    if always_change_scene or tree.current_scene.scene_file_path != scene_path:
+    if always_change_scene or (tree.current_scene and tree.current_scene.scene_file_path != scene_path):
         var scene: PackedScene = load(scene_path)
         assert(tree.change_scene_to_packed(scene) == OK)
         await tree.process_frame
         await tree.process_frame
+    
+    for body: Dictionary in body_data:
+        var path: String = body["path"]
+        @warning_ignore_start("unsafe_cast", "unsafe_call_argument")
+        var body_pos: Vector3 = str_to_var(body["position"])
+        var bod_rot: Basis = str_to_var(body["rotation"])
+        var linear_velocity: Vector3 = str_to_var(body["linear_velocity"])
+        var angular_velocity: Vector3 = str_to_var(body["angular_velocity"])
+        @warning_ignore_restore("unsafe_cast", "unsafe_call_argument")
+        
+        var node: RigidBody3D = get_node(path)
+        if !node:
+            continue
+
+        node.position = body_pos
+        node.global_basis = bod_rot
+        node.linear_velocity = linear_velocity
+        node.angular_velocity = angular_velocity
     
     var player: Player = tree.get_first_node_in_group("player")
     player.update_state_from_dict(player_state)
@@ -59,11 +93,12 @@ func _command_play() -> void:
         Console.print_error("Already recording or playing a replay")
         return
     
-    #assert(SReplay.recording.user_data is Dictionary)
-    #@warning_ignore("unsafe_call_argument")
-    #_set_current_state(SReplay.recording.user_data, true)
+    assert(SReplay.recording.user_data is Dictionary)
+    @warning_ignore("unsafe_call_argument")
+    _set_current_state(SReplay.recording.user_data, true)
 
     # playing on the idle frame is undefined behaviour
+    await get_tree().physics_frame
     await get_tree().physics_frame
     SReplay.play(
         func(user_data: Variant) -> void:
@@ -124,25 +159,18 @@ func _command_load(path: String) -> void:
 
 func _command_pause() -> void:
     SReplay.playback_rate = SReplay.Rate.PAUSED
-    get_tree().paused = true
 
 func _command_unpause() -> void:
     SReplay.playback_rate = _speed_control
-    Engine.time_scale = _speed_control / float(SReplay.Rate.FULL)
-    get_tree().paused = false
 
 func _play_toggle_pressed() -> void:
     if SReplay.playback_rate == SReplay.Rate.PAUSED:
         SReplay.playback_rate = _speed_control
-        Engine.time_scale = _speed_control / float(SReplay.Rate.FULL)
-        get_tree().paused = false
     else:
         SReplay.playback_rate = SReplay.Rate.PAUSED
-        get_tree().paused = true
 
 func _restart() -> void:
     SReplay.playback_rate = SReplay.Rate.PAUSED
-    get_tree().paused = true
     SReplay.restart()
 
     assert(SReplay.recording.user_data is Dictionary)
@@ -150,22 +178,18 @@ func _restart() -> void:
     _set_current_state(SReplay.recording.user_data, true)
 
 func _step_forward() -> void:
-    SReplay.playback_rate = SReplay.Rate.FULL
-    get_tree().paused = false
-    await get_tree().physics_frame
-    get_tree().paused = true
+
+    _disable_controls()
     SReplay.playback_rate = SReplay.Rate.PAUSED
+    SReplay.seek(SReplay.current_tick + 1, true)
 
 func _step_backward() -> void:
-    if SReplay.current_tick == 0 or SReplay.shift_finished.is_connected(_on_step_shift_finished):
+    if SReplay.current_tick == 0:
         return
 
-    get_tree().paused = false
-    SReplay.shift_finished.connect(_on_step_shift_finished, CONNECT_ONE_SHOT)
-    SReplay.shift(SReplay.current_tick - 2, true)
-
-func _on_step_shift_finished() -> void:
-    get_tree().paused = true
+    _disable_controls()
+    SReplay.playback_rate = SReplay.Rate.PAUSED
+    SReplay.seek(SReplay.current_tick - 1, true)
 
 func _toggle_group_button_toggled(
     on: bool,
@@ -183,8 +207,6 @@ func _toggle_group_button_toggled(
     _speed_control = rate
     if SReplay.playback_rate != SReplay.Rate.PAUSED:
         SReplay.playback_rate = _speed_control
-        Engine.time_scale = _speed_control / float(SReplay.Rate.FULL)
-        pass
 
 func _quarter_speed_toggled(on: bool) -> void:
     @warning_ignore("unsafe_call_argument")
@@ -202,10 +224,37 @@ func _double_speed_toggled(on: bool) -> void:
     @warning_ignore("unsafe_call_argument")
     _toggle_group_button_toggled(on, %DoubleSpeed, [%HalfSpeed, %FullSpeed, %QuarterSpeed], SReplay.Rate.DOUBLE)
 
+func _disable_controls() -> void:
+    for button: Button in _all_buttons:
+        button.disabled = true
+    
+    _scrubber.editable = false
+
+func _enable_controls() -> void:
+    for button: Button in _all_buttons:
+        button.disabled = false
+    
+    _scrubber.editable = true
+
 func _sreplay_mode_changed(_old: SReplay.Mode, new: SReplay.Mode) -> void:
     if new != SReplay.Mode.REPLAYING:
         _playback_control.visible = false
         _scrubber.max_value = SReplay.recording.max_tick
+
+func _sreplay_seek_finished() -> void:
+    _enable_controls()
+
+func _sreplay_playback_rate_changed(old: int, new: int) -> void:
+    if new == SReplay.Rate.PAUSED:
+        get_tree().paused = true
+        Engine.time_scale = 1.0
+        return
+        
+    if old == SReplay.Rate.PAUSED:
+        get_tree().paused = false
+
+    if new != SReplay.Rate.PAUSED:
+        Engine.time_scale = new / float(SReplay.Rate.FULL)
 
 func _ready() -> void:
     Console.add_command("record", _command_record, [], 0, "Begin recording a replay, if we're not already recording one")
@@ -217,12 +266,14 @@ func _ready() -> void:
     Console.add_command("unpause", _command_unpause, [], 0, "Unpause replay")
     
     SReplay.mode_changed.connect(_sreplay_mode_changed)
+    SReplay.seek_finished.connect(_sreplay_seek_finished)
+    SReplay.playback_rate_changed.connect(_sreplay_playback_rate_changed)
 
 func _unhandled_input(event: InputEvent) -> void:
     if SReplay.mode != SReplay.Mode.REPLAYING:
         return
 
-    if !event.is_action_pressed("toggle_replay_ui"):
+    if !event.is_action_pressed(&"toggle_replay_ui"):
         return
     
     _playback_control.visible = !_playback_control.visible
@@ -240,14 +291,25 @@ func _process(delta: float) -> void:
     _recording_label.visible = SReplay.mode == SReplay.Mode.RECORDING
     _replaying_label.visible = SReplay.mode == SReplay.Mode.REPLAYING
     
-    _recording_label.add_theme_color_override("font_color", _font_color)
-    _recording_label.add_theme_color_override("font_outline_color", _font_outline_color)
-    _replaying_label.add_theme_color_override("font_color", _font_color)
-    _replaying_label.add_theme_color_override("font_outline_color", _font_outline_color)
+    _recording_label.add_theme_color_override(&"font_color", _font_color)
+    _recording_label.add_theme_color_override(&"font_outline_color", _font_outline_color)
+    _replaying_label.add_theme_color_override(&"font_color", _font_color)
+    _replaying_label.add_theme_color_override(&"font_outline_color", _font_outline_color)
 
     if SReplay.mode == SReplay.Mode.REPLAYING && !_scrubber_dragging:
         _scrubber.set_value_no_signal(SReplay.current_tick)
         _scrubber.tooltip_text = str(SReplay.current_tick)
+
+func _physics_process(_delta: float) -> void:
+    for node: Node in get_tree().get_nodes_in_group(""):
+        assert(node is RigidBody3D)
+        @warning_ignore("unsafe_cast")
+        var body: RigidBody3D = node
+        var path := str(body.get_path())
+        body.global_position = SReplay.capture("position" + path, body.global_position)
+        body.global_basis = SReplay.capture("basis" + path, body.global_basis)
+        body.linear_velocity = SReplay.capture("linear" + path, body.linear_velocity)
+        body.angular_velocity = SReplay.capture("angular" + path, body.angular_velocity)
 
 func _on_scrubber_drag_started() -> void:
     _scrubber_dragging = true
@@ -257,4 +319,5 @@ func _on_scrubber_drag_ended(value_changed: bool) -> void:
     if !value_changed or SReplay.mode != SReplay.Mode.REPLAYING:
         return
 
-    SReplay.shift(roundi(_scrubber.value), false)
+    _disable_controls()
+    SReplay.seek(roundi(_scrubber.value), true)

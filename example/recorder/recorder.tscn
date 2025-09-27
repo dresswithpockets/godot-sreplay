@@ -136,26 +136,31 @@ theme_override_constants/separation = 12
 alignment = 1
 
 [node name="RestartButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Go to beginning"
 text = "⏮"
 
 [node name="BackButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Step backwards 1 tick"
 text = "⏪"
 
 [node name="PlayPauseButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Pause/Unpause playback"
 text = "▶/⏸"
 
 [node name="StopButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Stop playback and close this UI"
 text = "⏹"
 
 [node name="ForwardButton" type="Button" parent="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls"]
+unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Step forward 1 tick"
 text = "⏩"
@@ -183,10 +188,10 @@ script = ExtResource("3_hsvd8")
 [connection signal="toggled" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/HalfSpeed" to="." method="_half_speed_toggled"]
 [connection signal="toggled" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/FullSpeed" to="." method="_full_speed_toggled"]
 [connection signal="toggled" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerSpeedButtons/DoubleSpeed" to="." method="_double_speed_toggled"]
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/RestartButton" to="." method="_restart"]
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/BackButton" to="." method="_step_backward"]
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/PlayPauseButton" to="." method="_play_toggle_pressed"]
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/StopButton" to="." method="_command_stop"]
-[connection signal="pressed" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/ForwardButton" to="." method="_step_forward"]
+[connection signal="button_down" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/RestartButton" to="." method="_restart"]
+[connection signal="button_down" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/BackButton" to="." method="_step_backward"]
+[connection signal="button_down" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/PlayPauseButton" to="." method="_play_toggle_pressed"]
+[connection signal="button_down" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/StopButton" to="." method="_command_stop"]
+[connection signal="button_down" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/HBoxContainer/HBoxContainerPlayControls/ForwardButton" to="." method="_step_forward"]
 [connection signal="drag_ended" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/Scrubber" to="." method="_on_scrubber_drag_ended"]
 [connection signal="drag_started" from="PlaybackContainer/PanelContainer/MarginContainer/VBoxContainer/Scrubber" to="." method="_on_scrubber_drag_started"]

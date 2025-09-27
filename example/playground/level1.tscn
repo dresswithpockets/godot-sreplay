@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://c6aonp2o2u4eq"]
+[gd_scene load_steps=11 format=3 uid="uid://c6aonp2o2u4eq"]
 
 [ext_resource type="Texture2D" uid="uid://cmakn5jlblrk7" path="res://example/playground/green_ground.png" id="1_ryg5f"]
 [ext_resource type="Texture2D" uid="uid://6178amv01n5s" path="res://example/playground/purple_stairs.png" id="2_yb4w5"]
@@ -23,6 +23,10 @@ texture_filter = 4
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gwu22"]
 albedo_texture = ExtResource("2_yb4w5")
 texture_filter = 4
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_d2k4x"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_ryg5f"]
 
 [node name="Level1" type="Node3D" groups=["sreplay_input"]]
 
@@ -145,3 +149,12 @@ material = SubResource("StandardMaterial3D_gwu22")
 
 [node name="Player" parent="." instance=ExtResource("4_c58qk")]
 transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 2.17131, 2.38419e-07, -1.22164)
+
+[node name="RigidBody3D" type="RigidBody3D" parent="." groups=["tracked_bodies"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.2915366, 0.73743534, -6.349966)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RigidBody3D"]
+shape = SubResource("BoxShape3D_d2k4x")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="RigidBody3D"]
+mesh = SubResource("BoxMesh_ryg5f")
