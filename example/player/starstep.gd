@@ -6,6 +6,10 @@ class_name StarstepBody3D extends CharacterBody3D
 @export var step_horizontal_threshold: float = 2
 @export var step_ignore_horizontal_treshold: bool = true
 
+@export_group("Pushing")
+@export var push_force: float = 0.5
+@export var radial_force: float = 0.01
+
 var delta_position: Vector3 = Vector3.ZERO
 
 func star_move_and_slide() -> void:
@@ -30,12 +34,16 @@ func _move_and_slide() -> void:
     var vertical_speed := velocity.y
     velocity.y = 0
     move_and_slide()
+    
+    _push_bodies()
 
     # then we can perform the vertical iteration
     var horizontal_velocity := Vector3(velocity.x, 0, velocity.z)
     vertical_speed += velocity.y
     velocity = Vector3(0, vertical_speed, 0)
     move_and_slide()
+    
+    _push_bodies()
 
     velocity.x += horizontal_velocity.x
     velocity.z += horizontal_velocity.z
@@ -112,3 +120,12 @@ func _step_down(was_on_floor: bool) -> void:
 
     global_transform = new_transform
     apply_floor_snap()
+
+func _push_bodies() -> void:
+    for col_idx in get_slide_collision_count():
+        var collision := get_slide_collision(col_idx)
+        var collider := collision.get_collider()
+        if collider is RigidBody3D:
+            var force_direction := -collision.get_normal()
+            collider.apply_central_impulse(force_direction * push_force)
+            #collider.apply_impulse(force_direction * radial_force, collision.get_position())
