@@ -31,10 +31,6 @@ func to_state_dict() -> Dictionary:
     }
 
 func update_state_from_dict(state: Dictionary) -> void:
-    #@warning_ignore("unsafe_call_argument", "unsafe_cast")
-    #global_position = str_to_var(state["global_position"])
-    #reset_physics_interpolation()
-
     @warning_ignore("unsafe_call_argument", "unsafe_cast")
     yaw = str_to_var(state["yaw"]) as Basis
 
@@ -57,4 +53,3 @@ func _physics_process(_delta: float) -> void:
     yaw = SReplay.capture(replay_player_camera_yaw, yaw)
     pitch = SReplay.capture(replay_player_camera_pitch, pitch)
     global_basis = yaw * pitch
-    #global_position = SReplay.capture(replay_player_camera_position, global_position)
