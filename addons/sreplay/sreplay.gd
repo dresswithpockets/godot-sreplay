@@ -846,8 +846,6 @@ func _process(delta: float) -> void:
     if _mode == Mode.OFF:
         return
     
-    DebugDraw.set_text("tick", _physics_tick)
-    
     if _mode == Mode.RECORDING:
         # we do this on the beginning of this frame so we can accumulate calls to capture from the
         # last frame

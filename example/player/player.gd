@@ -22,19 +22,8 @@ var vertical_speed: float = 0
 var horizontal_velocity: Vector3 = Vector3.ZERO
 
 func _physics_process(delta: float) -> void:
-    DebugDraw.set_text("delta", str(delta))
-    DebugDraw.set_text("get_physics_process_delta_time", str(get_physics_process_delta_time()))
-
     var wish_dir := get_wish_dir()
     update_velocity(delta, wish_dir)
-    #if !wish_dir.is_zero_approx():
-        #velocity = Vector3(0, 0, ground_max_speed)
-    #else:
-        #velocity = Vector3.ZERO
-
-    DebugDraw.set_text("player.wish_dir", str(wish_dir))
-    DebugDraw.set_text("player.hvelocity", str(horizontal_velocity))
-    DebugDraw.set_text("player.hspeed", str(horizontal_velocity.length()))
 
     # N.B. this is a little game feel hack. It feels kind of weird for the player controller to step
     # up/down when the player isn't pressing any movement keys and speed is low. This prevents that
