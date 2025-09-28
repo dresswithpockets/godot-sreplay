@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Replay"
+config/name="SReplay Example"
 run/main_scene="uid://crolohox4g54f"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
