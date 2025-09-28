@@ -170,6 +170,10 @@ func _command_load(path: String) -> void:
         Console.print_error("Can't load a replay while recording or replaying")
         return
     
+    if "/" or "\\" in path:
+        Console.print_error("Replay path cannot contain slashes")
+        return
+
     var compressed_mode := false
     if path.ends_with(".gz"):
         compressed_mode = true
@@ -178,7 +182,7 @@ func _command_load(path: String) -> void:
     
     var buffer := FileAccess.get_file_as_bytes("user://replays/%s" % path)
     if buffer.is_empty():
-        Console.print_error("Error opening replay at '%s': %s" % [path, FileAccess.get_open_error()])
+        Console.print_error("Error opening replay at '%s': %s" % [path, error_string(FileAccess.get_open_error())])
         return
 
     var recording := _deserialize_json(buffer, compressed_mode)
@@ -188,6 +192,32 @@ func _command_load(path: String) -> void:
 
     SReplay.recording = recording
     Console.print_info("Loaded replay from '%s'" % path)
+
+func _command_list() -> void:
+    var dir := DirAccess.open("user://replays")
+    if !dir:
+        Console.print_error("Error reading replays from replay directory: %s" % error_string(DirAccess.get_open_error()))
+        return
+    
+    var err := dir.list_dir_begin()
+    if err != OK:
+        Console.print_error("Error reading replays from replay directory: %s" % error_string(err))
+        return
+    
+    var next := dir.get_next()
+    if next == "":
+        Console.print_info("Replays directory is empty")
+        dir.list_dir_end()
+        return
+
+    while next != "":
+        if dir.current_is_dir():
+            continue
+        
+        Console.print_info(next)
+        next = dir.get_next()
+    
+    dir.list_dir_end()
 
 func _command_pause() -> void:
     SReplay.playback_rate = SReplay.Rate.PAUSED
@@ -288,11 +318,13 @@ func _sreplay_playback_rate_changed(old: int, new: int) -> void:
         Engine.time_scale = new / float(SReplay.Rate.FULL)
 
 func _ready() -> void:
+    DirAccess.make_dir_recursive_absolute("user://replays")
     Console.add_command("record", _command_record, [], 0, "Begin recording a replay, if we're not already recording one")
     Console.add_command("stop", _command_stop, [], 0, "Stop recording a replay")
     Console.add_command("play", _command_play, [], 0, "Playback the currently loaded replay")
     Console.add_command("save", _command_save, ["Replay Name"], 1, "Save the recorded replay to a file")
     Console.add_command("load", _command_load, ["Replay Name"], 1, "Load a replay from a file")
+    Console.add_command("list", _command_list, [], 0, "List replays in replays directory")
     Console.add_command("pause", _command_pause, [], 0, "Pause replay")
     Console.add_command("unpause", _command_unpause, [], 0, "Unpause replay")
     
