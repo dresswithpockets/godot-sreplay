@@ -21,7 +21,7 @@ Settings="*res://example/settings.gd"
 Recorder="*res://example/recorder/recorder.tscn"
 Console="*res://addons/console/console.gd"
 MouseCapture="*res://example/player/mouse_capture.gd"
-SReplay="*res://addons/sreplay/sreplay.gd"
+SReplay="*res://addons/stardust.sreplay/sreplay.gd"
 DebugDraw="*res://addons/zylann.debug_draw/debug_draw.gd"
 
 [debug]
@@ -39,7 +39,7 @@ window/size/viewport_height=1080
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/console/plugin.cfg", "res://addons/sreplay/plugin.cfg")
+enabled=PackedStringArray("res://addons/console/plugin.cfg", "res://addons/stardust.sreplay/plugin.cfg")
 
 [global_group]
 
